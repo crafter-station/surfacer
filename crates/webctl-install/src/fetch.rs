@@ -47,6 +47,7 @@ mod tests {
                     operation_kind: webctl_ir::OperationKind::Read,
                     sample_request_content_type: None,
                     sample_response_content_type: Some("application/json".into()),
+                    params: Vec::new(),
                 }],
             }),
             ax: None,
