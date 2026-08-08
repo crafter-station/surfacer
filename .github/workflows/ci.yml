@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace
+
+      # The tree predates these gates and does not pass them yet. They report
+      # so the debt is visible, and stop reporting once someone clears it and
+      # removes continue-on-error.
+      - name: Format
+        run: cargo fmt --all --check
+        continue-on-error: true
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets
+        continue-on-error: true
+
+  emitted-cli-compiles:
+    name: emitted CLI compiles to a native binary
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install scriptc
+        run: npm install -g scriptc
+
+      - name: Emit the TypeScript CLI
+        run: cargo run -p webctl -- emit ts-cli examples/news-ycombinator-com.webctl.json
+
+      # The emitted program is the product. A green Rust suite says the emitter
+      # ran; only scriptc says the thing it wrote is a real program.
+      - name: Compile it
+        run: |
+          scriptc build emit/ts-cli/news-ycombinator-com.ts --dynamic -o /tmp/hn
+          /tmp/hn --help
+
+      - name: Report static coverage
+        run: scriptc coverage emit/ts-cli/news-ycombinator-com.ts --dynamic
