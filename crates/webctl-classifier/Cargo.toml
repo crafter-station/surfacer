@@ -11,3 +11,6 @@ thiserror.workspace = true
 url.workspace = true
 webctl-ir = { path = "../webctl-ir" }
 webctl-probe = { path = "../webctl-probe" }
+
+[dev-dependencies]
+webctl-emit-cli = { path = "../webctl-emit-cli" }

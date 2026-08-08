@@ -1731,6 +1731,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url",
+ "webctl-emit-cli",
  "webctl-ir",
  "webctl-probe",
 ]
