@@ -527,7 +527,7 @@
           "threads"
         ],
         "method": "GET",
-        "path": "/threads?id={id}",
+        "path": "/threads",
         "description": "threads",
         "operationKind": "read",
         "sampleRequestContentType": null,
@@ -546,7 +546,7 @@
           "user"
         ],
         "method": "GET",
-        "path": "/user?id={id}",
+        "path": "/user",
         "description": "user",
         "operationKind": "read",
         "sampleRequestContentType": null,
