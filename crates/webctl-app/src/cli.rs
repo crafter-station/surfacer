@@ -204,6 +204,7 @@ pub struct EmitArgs {
 pub enum EmitTargetArg {
     Cli { ir_path: PathBuf },
     JustBash { ir_path: PathBuf },
+    TsCli { ir_path: PathBuf },
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -737,6 +738,7 @@ pub async fn emit_command(args: EmitArgs) -> anyhow::Result<std::path::PathBuf> 
     let (ir_path, target_label) = match &args.target {
         EmitTargetArg::Cli { ir_path } => (ir_path.clone(), "cli"),
         EmitTargetArg::JustBash { ir_path } => (ir_path.clone(), "just-bash"),
+        EmitTargetArg::TsCli { ir_path } => (ir_path.clone(), "ts-cli"),
     };
     let descriptor = webctl_ir::read_ir(&ir_path)
         .with_context(|| format!("failed to read IR from {}", ir_path.display()))?;
@@ -745,6 +747,40 @@ pub async fn emit_command(args: EmitArgs) -> anyhow::Result<std::path::PathBuf> 
         for error in errors {
             eprintln!("warning: {error}");
         }
+    }
+
+    if target_label == "ts-cli" {
+        let out_dir = args.out_dir.unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("emit")
+                .join("ts-cli")
+        });
+        std::fs::create_dir_all(&out_dir)
+            .with_context(|| format!("failed to create {}", out_dir.display()))?;
+
+        let site = &descriptor.meta.site_name;
+        let source = webctl_emit_cli::emit_ts_cli(&descriptor);
+        let source_path = out_dir.join(format!("{site}.ts"));
+        std::fs::write(&source_path, &source)
+            .with_context(|| format!("failed to write {}", source_path.display()))?;
+
+        ok(&format!(
+            "TypeScript CLI written: {} ({}B)",
+            source_path.display(),
+            source.len()
+        ));
+        eprintln!();
+        hint("Run it directly:");
+        cmd(&format!("scriptc run {} -- --help", source_path.display()));
+        eprintln!();
+        hint("Or compile a native binary (no runtime required):");
+        cmd(&format!(
+            "scriptc build {} --dynamic -o {site}",
+            source_path.display()
+        ));
+
+        return Ok(source_path);
     }
 
     if target_label == "just-bash" {
