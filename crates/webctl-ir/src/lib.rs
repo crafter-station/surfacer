@@ -62,6 +62,7 @@ mod tests {
                         operation_kind: OperationKind::Read,
                         sample_request_content_type: Some("application/x-www-form-urlencoded".into()),
                         sample_response_content_type: Some("text/html".into()),
+                        params: Vec::new(),
                     },
                     HttpEndpoint {
                         namespace: vec!["ruc".into()],
@@ -71,6 +72,7 @@ mod tests {
                         operation_kind: OperationKind::Read,
                         sample_request_content_type: None,
                         sample_response_content_type: Some("text/html".into()),
+                        params: Vec::new(),
                     },
                 ],
             }),

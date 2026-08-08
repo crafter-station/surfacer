@@ -20,6 +20,32 @@ pub struct HttpEndpoint {
     pub sample_request_content_type: Option<String>,
     #[serde(default)]
     pub sample_response_content_type: Option<String>,
+    /// Query parameters observed on this endpoint during recon.
+    ///
+    /// Defaults to empty so descriptors emitted before parameters existed still
+    /// deserialize.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub params: Vec<ParamDescriptor>,
+}
+
+/// A query parameter observed during recon.
+///
+/// Recon sees requests, not documentation, so every field records what was
+/// observed rather than what the site guarantees.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParamDescriptor {
+    pub name: String,
+    /// True when the parameter carried a different value across observations,
+    /// which is the strongest available evidence that a caller controls it.
+    #[serde(default)]
+    pub varies: bool,
+    /// A value seen during recon, shown in help as an example.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub example: Option<String>,
+    /// How many requests to this endpoint carried the parameter.
+    #[serde(default)]
+    pub observations: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
