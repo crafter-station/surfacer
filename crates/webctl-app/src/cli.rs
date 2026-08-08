@@ -109,6 +109,8 @@ pub enum AuthAction {
 #[derive(Debug, Clone, clap::Args)]
 pub struct AuthLoginArgs {
     pub site: String,
+    #[arg(long)]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -756,7 +758,7 @@ pub async fn emit_command(args: EmitArgs) -> anyhow::Result<std::path::PathBuf> 
             .with_context(|| format!("failed to create {}", out_dir.display()))?;
 
         let config_content = webctl_emit_cli::emit_executor_config(&descriptor);
-        let config_path = out_dir.join(format!("{}.config.ts", descriptor.meta.site_name));
+        let config_path = out_dir.join(format!("{}.config.js", descriptor.meta.site_name));
         std::fs::write(&config_path, &config_content)
             .with_context(|| format!("failed to write {}", config_path.display()))?;
 
@@ -764,8 +766,14 @@ pub async fn emit_command(args: EmitArgs) -> anyhow::Result<std::path::PathBuf> 
         ok(&format!("ExecutorConfig written: {} ({}B)", config_path.display(), size));
         eprintln!();
         hint("Usage in just-bash:");
-        cmd(&format!("import {{ executorConfig }} from \"./{}.config\";", descriptor.meta.site_name));
-        cmd("const bash = new Bash({ executor: executorConfig });");
+        cmd("import { Bash } from \"just-bash\";");
+        cmd("import { createExecutor } from \"@just-bash/executor\";");
+        cmd(&format!(
+            "import {{ createWebctlExecutor }} from \"./{}.config.js\";",
+            descriptor.meta.site_name
+        ));
+        cmd("const executor = await createWebctlExecutor(createExecutor);");
+        cmd("const bash = new Bash({ javascript: { invokeTool: executor.invokeTool }, customCommands: executor.commands });");
         cmd(&format!("await bash.exec('{} --help');", descriptor.meta.site_name));
 
         return Ok(config_path);
@@ -990,7 +998,7 @@ async fn auth_login(args: AuthLoginArgs) -> anyhow::Result<()> {
     }
 
     let descriptor = webctl_ir::read_ir(&ir_path)?;
-    let login_url = &descriptor.meta.source_url;
+    let login_url = args.url.clone().unwrap_or_else(|| descriptor.meta.source_url.clone());
     let session_name = format!("webctl-{}", args.site);
 
     step(&format!("Opening {} for authentication...", login_url));
