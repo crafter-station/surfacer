@@ -16,24 +16,53 @@ pub fn emit_executor_config(descriptor: &SiteDescriptor) -> String {
             OperationKind::Other => "other",
         };
 
-        let url = match &op.transport {
-            OperationTransport::Http(http) => {
-                if let Some(ref http_surface) = descriptor.http {
-                    if let Some(endpoint) = http_surface.endpoints.get(http.endpoint_index) {
-                        format!("{}{}", base_url(source_url), endpoint.path)
-                    } else {
-                        format!("{}/unknown", base_url(source_url))
-                    }
-                } else {
-                    format!("{}/unknown", base_url(source_url))
-                }
-            }
-            OperationTransport::Ax(_) => format!("ax://{site}/{cmd_name}"),
+        let endpoint = match &op.transport {
+            OperationTransport::Http(http) => descriptor
+                .http
+                .as_ref()
+                .and_then(|surface| surface.endpoints.get(http.endpoint_index)),
+            OperationTransport::Ax(_) => None,
+        };
+
+        let url = match (&op.transport, endpoint) {
+            // `path` still carries the recon-time query template
+            // (`/user?id={id}`); parameters are supplied at call time, so only
+            // the path portion belongs in the base URL.
+            (OperationTransport::Http(_), Some(endpoint)) => format!(
+                "{}{}",
+                base_url(source_url),
+                endpoint.path.split('?').next().unwrap_or(&endpoint.path)
+            ),
+            (OperationTransport::Http(_), None) => format!("{}/unknown", base_url(source_url)),
+            (OperationTransport::Ax(_), _) => format!("ax://{site}/{cmd_name}"),
+        };
+
+        let params_doc = endpoint
+            .map(|e| e.params.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .map(|p| {
+                let example = p
+                    .example
+                    .as_deref()
+                    .map(|v| format!(" (e.g. {})", escape_js(v)))
+                    .unwrap_or_default();
+                format!("      //   {}{}", escape_js(&p.name), example)
+            })
+            .collect::<Vec<_>>();
+
+        let params_comment = if params_doc.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "\n      // Parameters observed during recon:\n{}\n",
+                params_doc.join("\n")
+            )
         };
 
         tools.push(format!(
             r#"    "{site}.{cmd_name}": {{
-      description: "{description}",
+      description: "{description}",{params_comment}
       execute: async (args) => {{
         assertAllowed("{site}.{cmd_name}", "{op_kind}");
         const url = withQuery("{url}", args);
