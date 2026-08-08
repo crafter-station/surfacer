@@ -531,7 +531,15 @@
         "description": "threads",
         "operationKind": "read",
         "sampleRequestContentType": null,
-        "sampleResponseContentType": "text/html; charset=utf-8"
+        "sampleResponseContentType": "text/html; charset=utf-8",
+        "params": [
+          {
+            "name": "id",
+            "varies": false,
+            "example": "Hunter17",
+            "observations": 1
+          }
+        ]
       },
       {
         "namespace": [
@@ -542,7 +550,15 @@
         "description": "user",
         "operationKind": "read",
         "sampleRequestContentType": null,
-        "sampleResponseContentType": "text/html; charset=utf-8"
+        "sampleResponseContentType": "text/html; charset=utf-8",
+        "params": [
+          {
+            "name": "id",
+            "varies": false,
+            "example": "Hunter17",
+            "observations": 1
+          }
+        ]
       }
     ]
   },

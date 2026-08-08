@@ -74,3 +74,19 @@ fn help_and_emitted_config_surface_the_params() {
         "the recon-time query template must not leak into the base URL"
     );
 }
+
+/// Writes a refreshed descriptor next to the shipped one so `webctl emit` can
+/// be run against parameters end to end without a live browser.
+#[test]
+#[ignore = "writes a file; run explicitly with --ignored"]
+fn regenerate_example_ir_with_params() {
+    let Some(har) = hn_har() else { return };
+    let endpoints = webctl_classifier::http_infer::infer_endpoints(&har);
+    let shipped = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/news-ycombinator-com.webctl.json");
+    let raw = std::fs::read_to_string(shipped).expect("shipped IR");
+    let mut descriptor: webctl_ir::SiteDescriptor = serde_json::from_str(&raw).expect("parse IR");
+    descriptor.http = Some(webctl_ir::HttpSurface { endpoints });
+    let out = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/news-ycombinator-com.webctl.json");
+    std::fs::write(out, serde_json::to_string_pretty(&descriptor).expect("serialize")).expect("write");
+    println!("rewrote {out}");
+}
