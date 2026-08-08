@@ -91,8 +91,16 @@ pub fn infer_endpoints(har: &HarLog) -> Vec<HttpEndpoint> {
             continue;
         }
 
+        // Two endpoints differing only in their query are distinct surfaces, so
+        // the grouping key keeps the query template. The stored path does not:
+        // parameters live in `params` and are supplied at call time.
         let normalized_path = normalize_endpoint_path(&entry.request.url);
         let key = (entry.request.method.to_ascii_uppercase(), normalized_path.clone());
+        let bare_path = normalized_path
+            .split('?')
+            .next()
+            .unwrap_or(&normalized_path)
+            .to_string();
 
         observed
             .entry(key.clone())
@@ -102,7 +110,7 @@ pub fn infer_endpoints(har: &HarLog) -> Vec<HttpEndpoint> {
         endpoints.entry(key).or_insert_with(|| HttpEndpoint {
             namespace: namespace_from_path(&normalized_path),
             method: method.clone(),
-            path: normalized_path.clone(),
+            path: bare_path,
             description: description_from_path(&normalized_path),
             operation_kind: webctl_ir::derive_operation_kind(&method),
             sample_request_content_type: request_content_type(entry),
