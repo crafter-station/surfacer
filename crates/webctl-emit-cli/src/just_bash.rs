@@ -9,7 +9,7 @@ pub fn emit_executor_config(descriptor: &SiteDescriptor) -> String {
 
     for op in &descriptor.operations {
         let cmd_name = op.command_path.join(".");
-        let description = op.description.replace('"', "\\\"");
+        let description = escape_js(&op.description);
         let op_kind = match op.operation_kind {
             OperationKind::Read => "read",
             OperationKind::Write => "write",
@@ -32,14 +32,15 @@ pub fn emit_executor_config(descriptor: &SiteDescriptor) -> String {
         };
 
         tools.push(format!(
-            r#"      "{site}.{cmd_name}": {{
-        description: "{description}",
-        operationKind: "{op_kind}",
-        execute: async () => {{
-          const res = await fetch("{url}");
-          return {{ status: res.status, body: await res.text() }};
-        }},
-      }}"#
+            r#"    "{site}.{cmd_name}": {{
+      description: "{description}",
+      execute: async (args) => {{
+        assertAllowed("{site}.{cmd_name}", "{op_kind}");
+        const url = withQuery("{url}", args);
+        const res = await fetch(url);
+        return {{ status: res.status, url, body: await res.text() }};
+      }},
+    }}"#
         ));
     }
 
@@ -51,23 +52,71 @@ pub fn emit_executor_config(descriptor: &SiteDescriptor) -> String {
 // Site: {site} ({display})
 // Generated: {timestamp}
 //
-// Usage with just-bash:
-//   import {{ executorConfig }} from "./{site}.config";
-//   const bash = new Bash({{ executor: executorConfig }});
-//   await bash.exec('{site} --help');
+// Usage:
+//   import {{ Bash }} from "just-bash";
+//   import {{ createExecutor }} from "@just-bash/executor";
+//   import {{ createWebctlExecutor }} from "./{site}.config.js";
+//
+//   const executor = await createWebctlExecutor(createExecutor);
+//   const bash = new Bash({{
+//     javascript: {{ invokeTool: executor.invokeTool }},
+//     customCommands: executor.commands,
+//   }});
+//   await bash.exec("{site} --help");
 
-export const executorConfig = {{
-  tools: {{
+/**
+ * Operation kinds allowed to run without explicit opt-in.
+ *
+ * Inline tools bypass the executor's `onToolApproval` pipeline (the caller owns
+ * `execute`), so the trust gate lives here instead.
+ */
+const ALLOWED_KINDS = new Set(["read"]);
+
+function assertAllowed(path, operationKind) {{
+  if (!ALLOWED_KINDS.has(operationKind)) {{
+    throw new Error(
+      `blocked: ${{path}} is a ${{operationKind}} operation. ` +
+        `Add "${{operationKind}}" to ALLOWED_KINDS to permit it.`,
+    );
+  }}
+}}
+
+function withQuery(url, args) {{
+  if (!args || typeof args !== "object") return url;
+  const entries = Object.entries(args).filter(([, v]) => v !== undefined && v !== null);
+  if (entries.length === 0) return url;
+  const target = new URL(url);
+  for (const [key, value] of entries) {{
+    target.searchParams.set(key, String(value));
+  }}
+  return target.toString();
+}}
+
+export const webctlTools = {{
 {tools_str}
-  }},
-  onToolApproval: async (request) => {{
-    if (request.operationKind === "read") return {{ approved: true }};
-    return {{ approved: false, reason: "write operations require explicit approval" }};
-  }},
 }};
+
+/**
+ * Build an executor handle for this site.
+ *
+ * Takes `createExecutor` as a parameter so this file stays dependency-free and
+ * inspectable; the caller supplies the implementation from
+ * `@just-bash/executor`.
+ */
+export async function createWebctlExecutor(createExecutor, config = {{}}) {{
+  return createExecutor({{ ...config, tools: {{ ...webctlTools, ...(config.tools ?? {{}}) }} }});
+}}
 "#,
-        timestamp = chrono_placeholder(),
+        timestamp = generated_at(),
     )
+}
+
+fn escape_js(input: &str) -> String {
+    input
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', " ")
+        .replace('\r', " ")
 }
 
 fn base_url(source_url: &str) -> String {
@@ -76,11 +125,11 @@ fn base_url(source_url: &str) -> String {
         .unwrap_or_else(|_| source_url.to_string())
 }
 
-fn chrono_placeholder() -> String {
+fn generated_at() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    format!("{secs}")
+    format!("epoch {secs}")
 }
