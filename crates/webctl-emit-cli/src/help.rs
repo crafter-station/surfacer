@@ -36,6 +36,20 @@ fn build_help_text_impl(descriptor: &webctl_ir::SiteDescriptor, color: bool) -> 
             out.push_str(&format!("  {:width$}  {}\n",
                 row.command, row.description, width = cmd_width));
         }
+        if !row.params.is_empty() {
+            let flags = row
+                .params
+                .iter()
+                .map(|p| format!("{p}="))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let indent = " ".repeat(cmd_width + 4);
+            if color {
+                out.push_str(&format!("{}{}\n", indent, flags.dimmed()));
+            } else {
+                out.push_str(&format!("{indent}{flags}\n"));
+            }
+        }
     }
     out.push('\n');
 
@@ -203,6 +217,7 @@ mod tests {
                         operation_kind: webctl_ir::OperationKind::Read,
                         sample_request_content_type: Some("application/x-www-form-urlencoded".into()),
                         sample_response_content_type: Some("text/html".into()),
+                        params: Vec::new(),
                     },
                     webctl_ir::HttpEndpoint {
                         namespace: vec!["ruc".into()],
@@ -212,6 +227,7 @@ mod tests {
                         operation_kind: webctl_ir::OperationKind::Read,
                         sample_request_content_type: None,
                         sample_response_content_type: Some("text/html".into()),
+                        params: Vec::new(),
                     },
                 ],
             }),

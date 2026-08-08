@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use crate::SiteDescriptor;
+use crate::{OperationDescriptor, OperationTransport, SiteDescriptor};
 
 #[derive(Debug, Clone, Error)]
 pub enum IrLintError {
@@ -25,6 +25,9 @@ pub enum IrLintError {
 pub struct CommandHelpRow {
     pub command: String,
     pub description: String,
+    /// Parameter names observed for this command during recon, most
+    /// caller-controlled first. Empty when the descriptor predates parameters.
+    pub params: Vec<String>,
 }
 
 pub fn lint_ir(descriptor: &SiteDescriptor) -> Result<(), Vec<IrLintError>> {
@@ -80,6 +83,22 @@ pub fn command_help_rows(descriptor: &SiteDescriptor) -> Vec<CommandHelpRow> {
         .map(|op| CommandHelpRow {
             command: op.command_path.join(" "),
             description: op.description.clone(),
+            params: endpoint_for(descriptor, op)
+                .map(|endpoint| endpoint.params.iter().map(|p| p.name.clone()).collect())
+                .unwrap_or_default(),
         })
         .collect()
+}
+
+fn endpoint_for<'a>(
+    descriptor: &'a SiteDescriptor,
+    op: &OperationDescriptor,
+) -> Option<&'a crate::HttpEndpoint> {
+    match &op.transport {
+        OperationTransport::Http(http) => descriptor
+            .http
+            .as_ref()
+            .and_then(|surface| surface.endpoints.get(http.endpoint_index)),
+        OperationTransport::Ax(_) => None,
+    }
 }
