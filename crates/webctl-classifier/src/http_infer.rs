@@ -1,10 +1,82 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use webctl_ir::{HttpEndpoint, HttpMethod};
+use webctl_ir::{HttpEndpoint, HttpMethod, ParamDescriptor};
 use webctl_probe::har::{HarEntry, HarLog};
+
+/// Query parameter names that carry no caller intent.
+///
+/// Cache busters and CSRF-style tokens appear in captured traffic exactly like
+/// real parameters, so recon has to reject them by shape.
+fn is_noise_param(name: &str, values: &BTreeSet<String>) -> bool {
+    // A single observation whose only value is empty says nothing about a
+    // caller-controlled input.
+    if values.len() == 1 && values.iter().all(|v| v.is_empty()) {
+        return true;
+    }
+    // Random identifiers used as cache busters: long, no separators, mixed case
+    // or digits, and never a word a person would type as a flag.
+    let long_opaque = name.len() >= 16
+        && name.chars().all(|c| c.is_ascii_alphanumeric())
+        && name.chars().any(|c| c.is_ascii_digit())
+        && name.chars().any(|c| c.is_ascii_uppercase())
+        && name.chars().any(|c| c.is_ascii_lowercase());
+    if long_opaque {
+        return true;
+    }
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "_" | "t" | "ts" | "cb" | "_t" | "v" | "rnd" | "random" | "nocache" | "cachebust"
+    )
+}
+
+/// Per-endpoint accumulator: every value seen for every query parameter.
+#[derive(Default)]
+struct ParamObservations {
+    values: BTreeMap<String, BTreeSet<String>>,
+    counts: BTreeMap<String, u32>,
+}
+
+impl ParamObservations {
+    fn record(&mut self, url: &str) {
+        let Ok(parsed) = url::Url::parse(url) else {
+            return;
+        };
+        for (name, value) in parsed.query_pairs() {
+            let name = name.into_owned();
+            self.values
+                .entry(name.clone())
+                .or_default()
+                .insert(value.into_owned());
+            *self.counts.entry(name).or_insert(0) += 1;
+        }
+    }
+
+    fn into_params(self) -> Vec<ParamDescriptor> {
+        let mut params: Vec<ParamDescriptor> = self
+            .values
+            .into_iter()
+            .filter(|(name, values)| !is_noise_param(name, values))
+            .map(|(name, values)| {
+                let observations = self.counts.get(&name).copied().unwrap_or(0);
+                let example = values.iter().find(|v| !v.is_empty()).cloned();
+                ParamDescriptor {
+                    varies: values.len() > 1,
+                    name,
+                    example,
+                    observations,
+                }
+            })
+            .collect();
+        // Parameters a caller demonstrably controls lead; the rest stay in a
+        // stable order so emitted output does not churn between runs.
+        params.sort_by(|a, b| b.varies.cmp(&a.varies).then_with(|| a.name.cmp(&b.name)));
+        params
+    }
+}
 
 pub fn infer_endpoints(har: &HarLog) -> Vec<HttpEndpoint> {
     let mut endpoints = BTreeMap::<(String, String), HttpEndpoint>::new();
+    let mut observed = BTreeMap::<(String, String), ParamObservations>::new();
 
     for entry in &har.log.entries {
         if is_static_asset(entry) {
@@ -22,6 +94,11 @@ pub fn infer_endpoints(har: &HarLog) -> Vec<HttpEndpoint> {
         let normalized_path = normalize_endpoint_path(&entry.request.url);
         let key = (entry.request.method.to_ascii_uppercase(), normalized_path.clone());
 
+        observed
+            .entry(key.clone())
+            .or_default()
+            .record(&entry.request.url);
+
         endpoints.entry(key).or_insert_with(|| HttpEndpoint {
             namespace: namespace_from_path(&normalized_path),
             method: method.clone(),
@@ -30,7 +107,14 @@ pub fn infer_endpoints(har: &HarLog) -> Vec<HttpEndpoint> {
             operation_kind: webctl_ir::derive_operation_kind(&method),
             sample_request_content_type: request_content_type(entry),
             sample_response_content_type: response_content_type(entry),
+            params: Vec::new(),
         });
+    }
+
+    for (key, endpoint) in endpoints.iter_mut() {
+        if let Some(observations) = observed.remove(key) {
+            endpoint.params = observations.into_params();
+        }
     }
 
     endpoints.into_values().collect()
