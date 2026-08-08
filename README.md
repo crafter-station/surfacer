@@ -69,13 +69,31 @@ webctl exec <site> <command>           Run a command (used by shims)
 Skip recon. Install webctl and a pre-generated IR for Hacker News in 4 lines:
 
 ```bash
-cargo install --git https://github.com/crafter-station/webctl webctl
+curl -fsSL https://raw.githubusercontent.com/crafter-station/webctl/main/install.sh | sh
 curl -O https://raw.githubusercontent.com/crafter-station/webctl/main/examples/news-ycombinator-com.webctl.json
 webctl install ./news-ycombinator-com.webctl.json --dest ~/.cargo/bin
 news-ycombinator-com news --json | jq '.items[].fields.title.value'
 ```
 
 That's the full pipeline against Hacker News with zero LLM tokens at runtime. More IRs in [`examples/`](./examples) (SUNAT, more on the way).
+
+The installer takes `WEBCTL_VERSION` to pin a release and `WEBCTL_INSTALL_DIR` to choose the destination (default `~/.local/bin`). To build from source instead:
+
+```bash
+cargo install --git https://github.com/crafter-station/webctl webctl
+```
+
+### Emit a standalone binary
+
+An IR can also become a self-contained CLI that needs no runtime at all — not even webctl:
+
+```bash
+webctl emit ts-cli ./news-ycombinator-com.webctl.json
+scriptc build emit/ts-cli/news-ycombinator-com.ts --dynamic -o hn
+./hn user id=Hunter17
+```
+
+[`scriptc`](https://scriptc.dev) compiles the emitted TypeScript to a native binary. On the Hacker News descriptor, 94% of statements compile statically; `fetch` has no static lowering yet, so the network call runs in the embedded engine and `--dynamic` is required.
 
 To recon your own site, you also need a Chromium with debugging enabled:
 
