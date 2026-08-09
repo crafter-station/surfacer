@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod ax;
 pub mod descriptor;
 pub mod extractor;
@@ -7,6 +8,7 @@ pub mod meta;
 pub mod paths;
 pub mod registry;
 
+pub use auth::*;
 pub use ax::*;
 pub use descriptor::*;
 pub use extractor::*;
@@ -42,6 +44,7 @@ mod tests {
                     operation_kind: OperationKind::Read,
                     transport: OperationTransport::Http(HttpOperation { endpoint_index: 0 }),
                     extractor: None,
+                    auth: None,
                 },
                 OperationDescriptor {
                     command_path: vec!["ficha-ruc".into()],
@@ -50,6 +53,7 @@ mod tests {
                     operation_kind: OperationKind::Read,
                     transport: OperationTransport::Http(HttpOperation { endpoint_index: 1 }),
                     extractor: None,
+                    auth: None,
                 },
             ],
             http: Some(HttpSurface {
@@ -75,6 +79,7 @@ mod tests {
                         params: Vec::new(),
                     },
                 ],
+                auth: None,
             }),
             ax: None,
         }

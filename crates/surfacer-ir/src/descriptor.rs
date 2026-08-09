@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{AxSurface, Extractor, HttpSurface, Provenance, SiteMeta};
+use crate::{AuthMode, AxSurface, Extractor, HttpSurface, Provenance, SiteMeta};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +24,12 @@ pub struct OperationDescriptor {
     pub transport: OperationTransport,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extractor: Option<Extractor>,
+    /// Overrides the surface-level auth for this operation. `None` means
+    /// "inherit the surface default". To express "this one operation is
+    /// public on an otherwise-authenticated surface", set
+    /// `Some(AuthMode::None)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthMode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -502,6 +502,7 @@ pub async fn recon_command(args: ReconArgs) -> anyhow::Result<surfacer_ir::SiteD
 
     let http_surface = surfacer_ir::HttpSurface {
         endpoints: infer_endpoints(&har),
+        auth: None,
     };
     let ax_surface = ax_tree
         .as_deref()
@@ -682,6 +683,7 @@ pub fn build_ir(
                     endpoint_index: index,
                 }),
                 extractor,
+                auth: None,
             });
         }
     }
@@ -708,6 +710,7 @@ pub fn build_ir(
                         action_index: index,
                     }),
                     extractor: None,
+                    auth: None,
                 });
             }
         }

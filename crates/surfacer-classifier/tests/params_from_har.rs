@@ -58,7 +58,7 @@ fn help_and_emitted_config_surface_the_params() {
     let shipped = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/news-ycombinator-com.surfacer.json");
     let raw = std::fs::read_to_string(shipped).expect("shipped IR");
     let mut descriptor: surfacer_ir::SiteDescriptor = serde_json::from_str(&raw).expect("parse IR");
-    descriptor.http = Some(surfacer_ir::HttpSurface { endpoints });
+    descriptor.http = Some(surfacer_ir::HttpSurface { endpoints, auth: None });
 
     let help = surfacer_emit_cli::build_help_text(&descriptor);
     println!("--- HELP ---\n{help}");
@@ -85,7 +85,7 @@ fn regenerate_example_ir_with_params() {
     let shipped = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/news-ycombinator-com.surfacer.json");
     let raw = std::fs::read_to_string(shipped).expect("shipped IR");
     let mut descriptor: surfacer_ir::SiteDescriptor = serde_json::from_str(&raw).expect("parse IR");
-    descriptor.http = Some(surfacer_ir::HttpSurface { endpoints });
+    descriptor.http = Some(surfacer_ir::HttpSurface { endpoints, auth: None });
     let out = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/news-ycombinator-com.surfacer.json");
     std::fs::write(out, serde_json::to_string_pretty(&descriptor).expect("serialize")).expect("write");
     println!("rewrote {out}");

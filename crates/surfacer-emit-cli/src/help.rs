@@ -231,6 +231,7 @@ mod tests {
                         endpoint_index: 0,
                     }),
                     extractor: None,
+                    auth: None,
                 },
                 surfacer_ir::OperationDescriptor {
                     command_path: vec!["ficha-ruc".into()],
@@ -241,6 +242,7 @@ mod tests {
                         endpoint_index: 1,
                     }),
                     extractor: None,
+                    auth: None,
                 },
             ],
             http: Some(surfacer_ir::HttpSurface {
@@ -266,6 +268,7 @@ mod tests {
                         params: Vec::new(),
                     },
                 ],
+                auth: None,
             }),
             ax: None,
         }

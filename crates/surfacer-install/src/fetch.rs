@@ -37,6 +37,7 @@ mod tests {
                     endpoint_index: 0,
                 }),
                     extractor: None,
+                    auth: None,
             }],
             http: Some(surfacer_ir::HttpSurface {
                 endpoints: vec![surfacer_ir::HttpEndpoint {
@@ -49,6 +50,7 @@ mod tests {
                     sample_response_content_type: Some("application/json".into()),
                     params: Vec::new(),
                 }],
+                auth: None,
             }),
             ax: None,
         }
