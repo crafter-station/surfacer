@@ -1,6 +1,7 @@
 use serde_json::{json, Map, Value};
 use surfacer_ir::{
-    HttpMethod, OperationKind, OperationTransport, SiteDescriptor,
+    resolve_auth, AuthMode, CredentialLocation, HttpMethod, OAuth2Grant, OperationKind,
+    OperationTransport, SiteDescriptor,
 };
 
 /// Emit an OpenAPI 3.1 document for a descriptor.
@@ -16,6 +17,18 @@ use surfacer_ir::{
 pub fn emit_openapi(descriptor: &SiteDescriptor) -> String {
     let mut paths = Map::new();
     let names = surfacer_ir::unique_command_names(descriptor);
+    // Distinct securitySchemes across the surface, keyed by their generated
+    // name. Built as operations are visited so only schemes actually used are
+    // emitted.
+    let mut security_schemes: Map<String, Value> = Map::new();
+    // Whether the surface itself defaults to an authenticated mode. When it
+    // does, an operation that resolves to `None` is an explicit public opt-out
+    // and gets `security: []`; otherwise it simply carries no `security`.
+    let surface_default_is_authenticated = descriptor
+        .http
+        .as_ref()
+        .and_then(|surface| surface.auth.as_ref())
+        .is_some_and(|mode| !matches!(mode, AuthMode::None));
 
     for (op, unique_name) in descriptor.operations.iter().zip(&names) {
         let OperationTransport::Http(http) = &op.transport else {
@@ -81,15 +94,25 @@ pub fn emit_openapi(descriptor: &SiteDescriptor) -> String {
             json!(kind_name(&op.operation_kind)),
         );
 
+        apply_auth(
+            &mut operation,
+            resolve_auth(op, descriptor.http.as_ref()),
+            surface_default_is_authenticated,
+            &mut security_schemes,
+        );
+
         let entry = paths
             .entry(path)
             .or_insert_with(|| Value::Object(Map::new()));
         if let Some(item) = entry.as_object_mut() {
-            item.insert(method_name(&endpoint.method).into(), Value::Object(operation));
+            item.insert(
+                method_name(&endpoint.method).into(),
+                Value::Object(operation),
+            );
         }
     }
 
-    let document = json!({
+    let mut document = json!({
         "openapi": "3.1.0",
         "info": {
             "title": descriptor.meta.display_name,
@@ -104,6 +127,18 @@ pub fn emit_openapi(descriptor: &SiteDescriptor) -> String {
         "servers": [{ "url": base_url(&descriptor.meta.source_url) }],
         "paths": Value::Object(paths),
     });
+
+    // Only attach `components.securitySchemes` when the surface actually used
+    // one. An unauthenticated surface leaves the document as it was before.
+    if let Some(obj) = document
+        .as_object_mut()
+        .filter(|_| !security_schemes.is_empty())
+    {
+        obj.insert(
+            "components".into(),
+            json!({ "securitySchemes": Value::Object(security_schemes) }),
+        );
+    }
 
     serde_json::to_string_pretty(&document).unwrap_or_else(|_| "{}".to_string())
 }
@@ -130,6 +165,132 @@ fn kind_name(kind: &OperationKind) -> &'static str {
         OperationKind::Write => "write",
         OperationKind::Other => "other",
     }
+}
+
+/// Attach the resolved auth to one operation and register any scheme it needs.
+///
+/// Maps to `components.securitySchemes` where OpenAPI 3.1 has a vocabulary for
+/// the mode, and degrades honestly where it does not:
+/// - `None`: no `security`, or `security: []` to mark an explicit public
+///   opt-out against an authenticated surface default.
+/// - `ApiKey`: a `type: apiKey` scheme referenced by the op.
+/// - `OAuth2`: a `type: oauth2` scheme with a `flows` block.
+/// - `BrowserBootstrappedToken`: OpenAPI 3.1 has no scheme for a browser-minted
+///   token replayed headless, so the op is written with an `x-surfacer-auth`
+///   extension carrying the full auth JSON, omitted from `security`, and a
+///   one-line note in its `description` (D3). This is declared, not faked.
+fn apply_auth(
+    operation: &mut Map<String, Value>,
+    auth: Option<&AuthMode>,
+    surface_default_is_authenticated: bool,
+    security_schemes: &mut Map<String, Value>,
+) {
+    match auth {
+        None | Some(AuthMode::None) => {
+            // An operation that opts out of an authenticated default is public
+            // on purpose, and `security: []` says so. Without such a default
+            // there is nothing to opt out of, so no `security` key at all.
+            if surface_default_is_authenticated {
+                operation.insert("security".into(), json!([]));
+            }
+        }
+        Some(mode @ AuthMode::ApiKey(_)) | Some(mode @ AuthMode::OAuth2(_)) => {
+            let (name, scheme) =
+                security_scheme_for(mode).expect("ApiKey and OAuth2 map to a securityScheme");
+            security_schemes.entry(name.clone()).or_insert(scheme);
+            operation.insert("security".into(), json!([{ name: [] }]));
+        }
+        Some(mode @ AuthMode::BrowserBootstrappedToken(_)) => {
+            // No OpenAPI equivalent (D3). Carry the full auth as an extension,
+            // omit it from `security`, and note the login step in the
+            // description so a human reading the spec learns why the operation
+            // will 401 without it. The whole `AuthMode` is serialized so the
+            // extension keeps its `kind` tag and reads back as an `AuthMode`.
+            operation.insert(
+                "x-surfacer-auth".into(),
+                serde_json::to_value(mode).unwrap_or(Value::Null),
+            );
+            let note = "Auth is browser-bootstrapped and has no OpenAPI security \
+                        scheme; run `surfacer auth login <site>` before calling.";
+            match operation.get_mut("description") {
+                Some(Value::String(existing)) => {
+                    let combined = format!("{existing} {note}");
+                    *existing = combined;
+                }
+                _ => {
+                    operation.insert("description".into(), json!(note));
+                }
+            }
+        }
+    }
+}
+
+/// Build the `(scheme_name, scheme_object)` for a mode that has an OpenAPI
+/// vocabulary. Returns `None` for modes that do not (`None`, browser token).
+///
+/// The name is derived from the scheme's shape so two operations that share the
+/// same mode reuse one scheme, while two genuinely different schemes on one
+/// surface (SUNAT runs several) get distinct names.
+fn security_scheme_for(mode: &AuthMode) -> Option<(String, Value)> {
+    match mode {
+        AuthMode::ApiKey(api) => {
+            let location = location_name(&api.location);
+            let scheme = json!({
+                "type": "apiKey",
+                "in": location,
+                "name": api.name,
+            });
+            let name = format!("apiKey_{location}_{}", sanitize(&api.name));
+            Some((name, scheme))
+        }
+        AuthMode::OAuth2(oauth) => {
+            let flow_key = oauth2_flow_key(&oauth.grant);
+            let scopes: Map<String, Value> = oauth
+                .scopes
+                .iter()
+                .map(|scope| (scope.clone(), json!("")))
+                .collect();
+            let flow = json!({
+                "tokenUrl": oauth.token_url,
+                "scopes": Value::Object(scopes),
+            });
+            let scheme = json!({
+                "type": "oauth2",
+                "flows": { flow_key: flow },
+            });
+            let name = format!("oauth2_{flow_key}");
+            Some((name, scheme))
+        }
+        AuthMode::None | AuthMode::BrowserBootstrappedToken(_) => None,
+    }
+}
+
+fn location_name(location: &CredentialLocation) -> &'static str {
+    match location {
+        CredentialLocation::Header => "header",
+        CredentialLocation::Query => "query",
+    }
+}
+
+/// The OpenAPI `flows` key for a grant. `AuthorizationCode` has no
+/// browser-free token URL flow the emitter can honestly describe here; the IR
+/// keeps it only for completeness inside Mode B, so it maps to the
+/// `authorizationCode` key for anyone who sets it directly.
+fn oauth2_flow_key(grant: &OAuth2Grant) -> &'static str {
+    match grant {
+        OAuth2Grant::Password => "password",
+        OAuth2Grant::ClientCredentials => "clientCredentials",
+        OAuth2Grant::AuthorizationCode => "authorizationCode",
+    }
+}
+
+/// A scheme name segment safe to use as a JSON key and referenceable from
+/// `security`. Keeps the name readable while avoiding spaces and separators.
+fn sanitize(value: &str) -> String {
+    value
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect()
 }
 
 fn method_name(method: &HttpMethod) -> &'static str {
