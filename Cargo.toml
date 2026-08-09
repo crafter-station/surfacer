@@ -1,11 +1,11 @@
 [workspace]
 members = [
-  "crates/webctl-app",
-  "crates/webctl-ir",
-  "crates/webctl-probe",
-  "crates/webctl-classifier",
-  "crates/webctl-emit-cli",
-  "crates/webctl-install",
+  "crates/surfacer-app",
+  "crates/surfacer-ir",
+  "crates/surfacer-probe",
+  "crates/surfacer-classifier",
+  "crates/surfacer-emit-cli",
+  "crates/surfacer-install",
 ]
 resolver = "2"
 

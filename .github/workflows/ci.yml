@@ -61,7 +61,7 @@ jobs:
         run: npm install -g scriptc
 
       - name: Emit the TypeScript CLI
-        run: cargo run -p webctl -- emit ts-cli examples/news-ycombinator-com.webctl.json
+        run: cargo run -p surfacer -- emit ts-cli examples/news-ycombinator-com.surfacer.json
 
       # The emitted program is the product. A green Rust suite says the emitter
       # ran; only scriptc says the thing it wrote is a real program.

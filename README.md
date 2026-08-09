@@ -1,51 +1,65 @@
-# webctl
+# surfacer
 
-Turn any website into an installable CLI.
+Keep integrations against systems with no API, without rewriting them every time they change.
 
 ```bash
-# Discover a site autonomously
-webctl recon https://news.ycombinator.com --auto --yes
+# Map a surface once
+surfacer recon https://news.ycombinator.com --auto --yes
 
-# Install it
-webctl install ./webctl-recon-hn/news-ycombinator-com.webctl.json
+# Emit whatever interface you need from the same IR
+surfacer install ./surfacer-recon-hn/news-ycombinator-com.surfacer.json
+surfacer emit ts-cli ./news-ycombinator-com.surfacer.json
+surfacer emit just-bash ./news-ycombinator-com.surfacer.json
 
 # Use it
-news-ycombinator-com news
-news-ycombinator-com news --json
-news-ycombinator-com open 1
+news-ycombinator-com user id=Hunter17
 ```
 
 ## What it does
 
-webctl reverse-engineers websites into declarative intermediate representations (IRs) that become installable CLIs. One recon pass, zero LLM tokens at runtime.
+Most of the useful internet has no documented API. Reaching it means either paying an LLM on every run, or hand-writing a client that breaks the next time the site changes. The second option is why unofficial clients die: yt-dlp maintains three release channels to keep up, and spotify-tui was abandoned when patching stopped scaling.
+
+surfacer maps a surface once into a declarative intermediate representation, then emits interfaces from it. When the surface changes, you re-run recon instead of rewriting the client. Nothing calls an LLM at runtime.
 
 ```
-Website → webctl recon → IR (JSON) → webctl install → CLI binary
-                                   → webctl emit just-bash → ExecutorConfig
+                                   ┌→ native CLI binary (via scriptc)
+                                   ├→ CLI shim
+surface → recon → IR (JSON) ───────┼→ just-bash ExecutorConfig
+                                   ├→ self-describing help
+                                   └→ (your emitter here)
 ```
 
-The same IR feeds multiple runtimes: standalone CLI shims, [just-bash](https://github.com/vercel-labs/just-bash) ExecutorConfig, and more.
+The IR is the artifact. It is a plain JSON file you can read, diff, edit, and commit, not an internal detail of a runtime you have to adopt.
+
+## Surfaces
+
+HTTP endpoints and accessibility trees today. The IR models operations and transports rather than pages, so a new surface kind is a transport variant, not a rewrite.
 
 ## How it works
 
-1. **Recon**. `webctl recon <url> --auto` opens a browser, autonomously navigates the site, captures HTTP traffic, classifies the backend archetype, detects repeating content patterns, and emits a declarative IR.
+1. **Recon**. `surfacer recon <url> --auto` opens a browser, autonomously navigates the site, captures HTTP traffic, classifies the backend archetype, detects repeating content patterns, and emits a declarative IR.
 
-2. **Install**. `webctl install <ir>` generates a thin CLI shim (~300KB) and places it in your PATH.
+2. **Emit**. One IR, several targets: a CLI shim, a self-contained TypeScript program that [scriptc](https://scriptc.dev) compiles to a native binary needing no runtime, a [just-bash](https://github.com/vercel-labs/just-bash) ExecutorConfig for agents, and `--help` derived from the same descriptor.
 
-3. **Use**. The installed CLI fetches live data from the site, extracts structured content via CSS selectors, and renders it as a formatted list or JSON.
+3. **Use**. The emitted interface fetches live data, extracts structured content, and renders it as a formatted list or JSON. Write operations are blocked by default: recon cannot tell a harmless write from a destructive one.
+
+4. **Re-run**. `surfacer check` fingerprints canary endpoints to detect drift. When the surface moves, recon again and re-emit every target.
 
 ## Commands
 
 ```
-webctl recon <url> [--auto] [--yes]    Reverse-engineer a website
-webctl install <ir-path>               Install a site locally
-webctl emit cli <ir-path>              Generate a CLI shim binary
-webctl emit just-bash <ir-path>        Generate a just-bash ExecutorConfig
-webctl lint <ir-path>                  Validate an IR file
-webctl auth login <site>               Authenticate with a site
-webctl auth status <site>              Check auth state
-webctl auth logout <site>              Clear auth session
-webctl exec <site> <command>           Run a command (used by shims)
+surfacer recon <url> [--auto] [--yes]    Map a surface into an IR
+surfacer install <ir-path>               Install a site locally
+surfacer check <site>                    Detect drift against the recorded IR
+surfacer shell [site]                    Interactive REPL over installed sites
+surfacer emit cli <ir-path>              Generate a CLI shim binary
+surfacer emit ts-cli <ir-path>           Generate a self-contained TypeScript CLI
+surfacer emit just-bash <ir-path>        Generate a just-bash ExecutorConfig
+surfacer lint <ir-path>                  Validate an IR file
+surfacer auth login <site>               Authenticate with a site
+surfacer auth status <site>              Check auth state
+surfacer auth logout <site>              Clear auth session
+surfacer exec <site> <command>           Run a command (used by shims)
 ```
 
 ## Installed site commands
@@ -66,29 +80,29 @@ webctl exec <site> <command>           Run a command (used by shims)
 
 ## Quick start
 
-Skip recon. Install webctl and a pre-generated IR for Hacker News in 4 lines:
+Skip recon. Install surfacer and a pre-generated IR for Hacker News in 4 lines:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/crafter-station/webctl/main/install.sh | sh
-curl -O https://raw.githubusercontent.com/crafter-station/webctl/main/examples/news-ycombinator-com.webctl.json
-webctl install ./news-ycombinator-com.webctl.json --dest ~/.cargo/bin
+curl -fsSL https://raw.githubusercontent.com/crafter-station/surfacer/main/install.sh | sh
+curl -O https://raw.githubusercontent.com/crafter-station/surfacer/main/examples/news-ycombinator-com.surfacer.json
+surfacer install ./news-ycombinator-com.surfacer.json --dest ~/.cargo/bin
 news-ycombinator-com news --json | jq '.items[].fields.title.value'
 ```
 
 That's the full pipeline against Hacker News with zero LLM tokens at runtime. More IRs in [`examples/`](./examples) (SUNAT, more on the way).
 
-The installer takes `WEBCTL_VERSION` to pin a release and `WEBCTL_INSTALL_DIR` to choose the destination (default `~/.local/bin`). To build from source instead:
+The installer takes `SURFACER_VERSION` to pin a release and `SURFACER_INSTALL_DIR` to choose the destination (default `~/.local/bin`). To build from source instead:
 
 ```bash
-cargo install --git https://github.com/crafter-station/webctl webctl
+cargo install --git https://github.com/crafter-station/surfacer surfacer
 ```
 
 ### Emit a standalone binary
 
-An IR can also become a self-contained CLI that needs no runtime at all — not even webctl:
+An IR can also become a self-contained CLI that needs no runtime at all: not even surfacer:
 
 ```bash
-webctl emit ts-cli ./news-ycombinator-com.webctl.json
+surfacer emit ts-cli ./news-ycombinator-com.surfacer.json
 scriptc build emit/ts-cli/news-ycombinator-com.ts --dynamic -o hn
 ./hn user id=Hunter17
 ```
@@ -102,29 +116,29 @@ To recon your own site, you also need a Chromium with debugging enabled:
 /Applications/Comet.app/Contents/MacOS/Comet --remote-debugging-port=9222 &
 # or: google-chrome --remote-debugging-port=9222 &
 
-webctl recon https://your-site.example --auto --yes
-webctl install ./webctl-recon-your-site-example/your-site-example.webctl.json
+surfacer recon https://your-site.example --auto --yes
+surfacer install ./surfacer-recon-your-site-example/your-site-example.surfacer.json
 ```
 
 ## Architecture
 
 ```
-webctl/
-├── webctl-ir          IR types (SiteDescriptor, extractors, registry)
-├── webctl-probe       agent-browser wrapper, auto-recon, HAR capture
-├── webctl-classifier  11-feature heuristic backend archetype detection
-├── webctl-emit-cli    CLI shim + just-bash ExecutorConfig generation
-├── webctl-install     Local IR installer + registry
-└── webctl-app         CLI entry point, orchestration
+surfacer/
+├── surfacer-ir          IR types (SiteDescriptor, extractors, registry)
+├── surfacer-probe       agent-browser wrapper, auto-recon, HAR capture
+├── surfacer-classifier  11-feature heuristic backend archetype detection
+├── surfacer-emit-cli    CLI shim + just-bash ExecutorConfig generation
+├── surfacer-install     Local IR installer + registry
+└── surfacer-app         CLI entry point, orchestration
 ```
 
 ## The thesis
 
-Most AI agent runtimes re-run an LLM every time an agent interacts with a website (Browser Use, Stagehand, Operator). webctl takes the opposite approach: reverse-engineer the site once, emit a deterministic interface, use it forever. One LLM pass during recon, zero tokens at runtime.
+Most AI agent runtimes re-run an LLM every time an agent interacts with a website (Browser Use, Stagehand, Operator). surfacer takes the opposite approach: reverse-engineer the site once, emit a deterministic interface, use it forever. One LLM pass during recon, zero tokens at runtime.
 
 ## Target sites
 
-webctl targets sites **without official CLIs or APIs**: government portals, banks, regional SaaS, legacy systems. It does not compete with vendor CLIs (gh, stripe, vercel, aws).
+surfacer targets sites **without official CLIs or APIs**: government portals, banks, regional SaaS, legacy systems. It does not compete with vendor CLIs (gh, stripe, vercel, aws).
 
 ## Status
 

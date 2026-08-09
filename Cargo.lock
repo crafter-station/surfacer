@@ -1308,6 +1308,104 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7401a30af6cb5818bb64852270bb722533397edcfc7344954a38f420819ece2"
 
 [[package]]
+name = "surfacer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "clap",
+ "indicatif",
+ "miette",
+ "owo-colors",
+ "regex",
+ "rustyline",
+ "scraper",
+ "serde",
+ "serde_json",
+ "surfacer-classifier",
+ "surfacer-emit-cli",
+ "surfacer-install",
+ "surfacer-ir",
+ "surfacer-probe",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
+name = "surfacer-classifier"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "surfacer-emit-cli",
+ "surfacer-ir",
+ "surfacer-probe",
+ "thiserror",
+ "url",
+]
+
+[[package]]
+name = "surfacer-emit-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "owo-colors",
+ "serde",
+ "serde_json",
+ "surfacer-ir",
+ "tempfile",
+ "url",
+]
+
+[[package]]
+name = "surfacer-install"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "directories",
+ "serde",
+ "serde_json",
+ "surfacer-emit-cli",
+ "surfacer-ir",
+ "tempfile",
+]
+
+[[package]]
+name = "surfacer-ir"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "surfacer-probe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "regex",
+ "scraper",
+ "serde",
+ "serde_json",
+ "surfacer-ir",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1694,104 +1792,6 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "webctl"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "camino",
- "clap",
- "indicatif",
- "miette",
- "owo-colors",
- "regex",
- "rustyline",
- "scraper",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
- "webctl-classifier",
- "webctl-emit-cli",
- "webctl-install",
- "webctl-ir",
- "webctl-probe",
-]
-
-[[package]]
-name = "webctl-classifier"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "thiserror",
- "url",
- "webctl-emit-cli",
- "webctl-ir",
- "webctl-probe",
-]
-
-[[package]]
-name = "webctl-emit-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "camino",
- "owo-colors",
- "serde",
- "serde_json",
- "tempfile",
- "url",
- "webctl-ir",
-]
-
-[[package]]
-name = "webctl-install"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "camino",
- "directories",
- "serde",
- "serde_json",
- "tempfile",
- "webctl-emit-cli",
- "webctl-ir",
-]
-
-[[package]]
-name = "webctl-ir"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "camino",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "webctl-probe"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "camino",
- "regex",
- "scraper",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "url",
- "webctl-ir",
 ]
 
 [[package]]
