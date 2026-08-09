@@ -1,0 +1,135 @@
+{
+  "meta": {
+    "siteName": "sunat-declaraciones",
+    "displayName": "SUNAT Declaraciones (curated)",
+    "sourceUrl": "https://e-plataformaunica.sunat.gob.pe",
+    "irVersion": "0.1.0"
+  },
+  "provenance": {
+    "generatedAt": "2026-08-09T00:00:00Z",
+    "technique": "http",
+    "classifierBucket": "curated-fixture",
+    "probeDurationSec": 0
+  },
+  "operations": [
+    {
+      "commandPath": [
+        "sire",
+        "ventas",
+        "periodos"
+      ],
+      "summary": "List SIRE ventas periods",
+      "description": "Registro de Ventas e Ingresos (RVIE). OAuth2 via the surface default.",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 0
+      }
+    },
+    {
+      "commandPath": [
+        "f616",
+        "periodo"
+      ],
+      "summary": "Open an F616 period",
+      "description": "Trabajador Independiente monthly declaration. Needs a browser-captured IdCache.",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 1
+      },
+      "auth": {
+        "kind": "browserBootstrappedToken",
+        "acquire": {
+          "loginUrl": "https://e-menu.sunat.gob.pe/cl-ti-itmenu/AutenticaMenuInternet.htm",
+          "capture": {
+            "source": "requestQueryParam",
+            "urlContains": "servletAcceso",
+            "param": "idCache"
+          },
+          "sessionRef": "sunat"
+        },
+        "use": {
+          "location": "header",
+          "name": "IdCache"
+        },
+        "ttl": {
+          "seconds": 3600,
+          "onExpiry": "promptReauth"
+        }
+      }
+    },
+    {
+      "commandPath": [
+        "padron",
+        "ruc"
+      ],
+      "summary": "Look up a RUC in the public padron",
+      "description": "Public taxpayer lookup. No credentials required.",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 2
+      },
+      "auth": {
+        "kind": "none"
+      }
+    }
+  ],
+  "http": {
+    "endpoints": [
+      {
+        "namespace": [
+          "v1"
+        ],
+        "method": "GET",
+        "path": "/v1/contribuyente/migeigv/libros/rvie/periodos",
+        "description": "SIRE RVIE periods",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "application/json"
+      },
+      {
+        "namespace": [
+          "v1"
+        ],
+        "method": "GET",
+        "path": "/v1/recaudacion/tributaria/declaracion/pagoelectronico/trabajadorindependiente/e/obtenerPeriodo/032026",
+        "description": "Open an F616 period (path carries the period, MMYYYY)",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "application/json"
+      },
+      {
+        "namespace": [
+          "v1"
+        ],
+        "method": "GET",
+        "path": "/v1/contribuyente/contribuyentes/10712392563",
+        "description": "Public RUC lookup (path carries the RUC)",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "application/json"
+      }
+    ],
+    "auth": {
+      "kind": "oAuth2",
+      "grant": "password",
+      "tokenUrl": "https://api-seguridad.sunat.gob.pe/v1/clientessol/{clientId}/oauth2/token/",
+      "scopes": [
+        "sire",
+        "gre",
+        "cpe"
+      ],
+      "credentials": {
+        "from": "env",
+        "var": "SUNAT_SOL_CREDENTIALS"
+      },
+      "ttl": {
+        "seconds": 3600,
+        "onExpiry": "reacquire"
+      }
+    }
+  },
+  "ax": null
+}
