@@ -88,17 +88,27 @@ fn the_generated_cli_carries_the_whole_descriptor() {
 
     assert!(out.contains(r#"name: "list""#), "operations must be inlined");
     assert!(out.contains(r#"name: "show""#), "operations must be inlined");
-    // The header comment names surfacer as the generator, so look for an actual
-    // invocation: the Rust shim spawns `surfacer exec`, this program must not.
+    // The Rust shim spawns `surfacer exec`; this self-contained program must
+    // not. It may still *name* the surfacer CLI: AE-V4 bakes the token path
+    // `~/.surfacer/sites/<site>/token.json` and prints a `surfacer auth login`
+    // reauth hint, both legitimate. The gate is on shelling out, not the word.
     let code = out
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(
-        !code.contains("surfacer"),
-        "the emitted CLI must not shell out to surfacer; the Rust shim does that, this one is self-contained"
-    );
+    for spawn in [
+        "spawn(\"surfacer",
+        "exec(\"surfacer",
+        "execSync(\"surfacer",
+        "spawnSync(\"surfacer",
+        "child_process",
+    ] {
+        assert!(
+            !code.contains(spawn),
+            "the emitted CLI must not shell out to surfacer ({spawn}); the Rust shim does that, this one is self-contained"
+        );
+    }
 }
 
 #[test]

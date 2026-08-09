@@ -1,4 +1,7 @@
-use surfacer_ir::{OperationKind, OperationTransport, ParamDescriptor, SiteDescriptor};
+use surfacer_ir::{
+    resolve_auth, AuthMode, CredentialLocation, OAuth2Grant, OperationKind, OperationTransport,
+    ParamDescriptor, RenewalStrategy, SecretRef, SiteDescriptor, TokenUse,
+};
 
 /// Emit a self-contained TypeScript CLI for a site.
 ///
@@ -6,6 +9,12 @@ use surfacer_ir::{OperationKind, OperationTransport, ParamDescriptor, SiteDescri
 /// carries the whole descriptor inline and needs nothing else installed. It is
 /// written to compile under `scriptc`, so it can ship as a native binary with
 /// no runtime.
+///
+/// Auth (AE-V4): each operation's resolved `AuthMode` is inlined as a runtime
+/// record. `resolveToken` covers the three headless modes; the token is then
+/// attached per `TokenUse` before the fetch. The captured browser token is read
+/// from a path baked in at emit time, because the standalone binary has no
+/// access to the Rust path helpers.
 pub fn emit_ts_cli(descriptor: &SiteDescriptor) -> String {
     let site = &descriptor.meta.site_name;
     let display = escape_ts(&descriptor.meta.display_name);
@@ -38,13 +47,16 @@ pub fn emit_ts_cli(descriptor: &SiteDescriptor) -> String {
 
         let params = endpoint.map(|e| e.params.as_slice()).unwrap_or_default();
 
+        let auth = render_auth(resolve_auth(op, descriptor.http.as_ref()), site);
+
         entries.push(format!(
-            "  {{\n    name: {},\n    description: {},\n    kind: {},\n    path: {},\n    params: [{}],\n  }}",
+            "  {{\n    name: {},\n    description: {},\n    kind: {},\n    path: {},\n    params: [{}],\n    auth: {},\n  }}",
             quote(&command),
             quote(&description),
             quote(kind),
             quote(&path),
             render_params(params),
+            auth,
         ));
     }
 
@@ -62,7 +74,54 @@ pub fn emit_ts_cli(descriptor: &SiteDescriptor) -> String {
 // embedded engine and `--dynamic` is required. Everything else compiles
 // statically.
 
+import {{ existsSync, readFileSync }} from "node:fs";
+import {{ homedir }} from "node:os";
+import {{ join }} from "node:path";
+
 type OperationKind = "read" | "write" | "other";
+type CredentialLocation = "header" | "query";
+
+// The auth an operation actually uses, mirrored from the IR's AuthMode. `none`
+// carries no fields; the others carry only what the client needs at runtime.
+// The secret value is never inlined: `secretRef` / `credentials` name a source
+// the client reads at call time.
+type SecretRef =
+  | {{ from: "env"; var: string }}
+  | {{ from: "file"; path: string }}
+  | {{ from: "acquired" }};
+
+interface TokenUse {{
+  location: CredentialLocation;
+  name: string;
+  valuePrefix?: string;
+}}
+
+type Auth =
+  | {{ kind: "none" }}
+  | {{
+      kind: "apiKey";
+      location: CredentialLocation;
+      name: string;
+      valuePrefix?: string;
+      secretRef: SecretRef;
+    }}
+  | {{
+      kind: "oAuth2";
+      grant: "password" | "clientCredentials";
+      tokenUrl: string;
+      scopes: string[];
+      credentials: SecretRef;
+      use: TokenUse;
+      ttlSeconds?: number;
+      reacquire: boolean;
+    }}
+  | {{
+      kind: "browserBootstrappedToken";
+      site: string;
+      use: TokenUse;
+      ttlSeconds: number;
+      promptReauth: boolean;
+    }};
 
 interface Param {{
   name: string;
@@ -75,6 +134,7 @@ interface Operation {{
   kind: OperationKind;
   path: string;
   params: Param[];
+  auth: Auth;
 }}
 
 const SITE = {site_lit};
@@ -87,7 +147,8 @@ const OPERATIONS: Operation[] = [
 
 // Operation kinds allowed to run without an explicit opt-in. Recon cannot
 // tell a harmless write from a destructive one, so writes stay blocked
-// until a human widens this.
+// until a human widens this. Auth is orthogonal: widening auth never widens
+// this gate.
 const ALLOWED_KINDS = new Set<string>(["read"]);
 
 function findOperation(name: string): Operation | undefined {{
@@ -95,6 +156,157 @@ function findOperation(name: string): Operation | undefined {{
     if (op.name === name) return op;
   }}
   return undefined;
+}}
+
+/**
+ * The auth an operation resolves to. A thin lookup so the fetch path reads
+ * `authForOperation(op.name)` rather than reaching into the record inline.
+ */
+function authForOperation(name: string): Auth {{
+  const op = findOperation(name);
+  if (op === undefined) return {{ kind: "none" }};
+  return op.auth;
+}}
+
+// A resolved token plus how to attach it. `use` is undefined only for the
+// `none` case, which never reaches attachToken.
+interface ResolvedToken {{
+  token: string;
+  use: TokenUse;
+}}
+
+// The browser-bootstrapped token file written by `surfacer auth login <site>`.
+// Shape and location are a cross-language contract with the Rust side: the path
+// is baked here because a standalone binary cannot call the Rust path helpers,
+// and the field names (`token`, `expiresAt` in epoch seconds, `capturedAt`)
+// match `crates/surfacer-app/src/token_cache.rs`.
+interface CapturedToken {{
+  token: string;
+  expiresAt: number;
+  capturedAt: number;
+}}
+
+function tokenFilePath(site: string): string {{
+  return join(homedir(), ".surfacer", "sites", site, "token.json");
+}}
+
+function readSecret(ref: SecretRef): string {{
+  if (ref.from === "env") {{
+    const value = process.env[ref.var];
+    if (value === undefined || value === "") {{
+      throw new Error("missing credential: set the " + ref.var + " environment variable");
+    }}
+    return value;
+  }}
+  if (ref.from === "file") {{
+    if (!existsSync(ref.path)) {{
+      throw new Error("missing credential file: " + ref.path);
+    }}
+    return readFileSync(ref.path, "utf-8").trim();
+  }}
+  // `acquired`: produced by an acquisition step, not read from anywhere static.
+  throw new Error("this credential is acquired at runtime, not read from a static source");
+}}
+
+// In-process OAuth2 token cache, keyed by token URL. Mirrors the proven
+// sunat-cli/sunat-rest/oauth.ts: refresh 60s before the real expiry.
+const oauthCache = new Map<string, {{ token: string; expiresAt: number }}>();
+
+async function acquireOAuth2Token(
+  auth: Extract<Auth, {{ kind: "oAuth2" }}>,
+): Promise<string> {{
+  const cached = oauthCache.get(auth.tokenUrl);
+  if (cached && cached.expiresAt > Date.now() + 60_000) {{
+    return cached.token;
+  }}
+
+  // credentials is a single source holding the grant inputs as a JSON blob:
+  // `{{ username, password }}` for password, `{{ clientId, clientSecret }}` for
+  // client credentials. The IR names the source; the client parses it.
+  const raw = readSecret(auth.credentials);
+  let creds: Record<string, string>;
+  try {{
+    creds = JSON.parse(raw);
+  }} catch {{
+    throw new Error("credentials source did not hold JSON grant inputs");
+  }}
+
+  const params: Record<string, string> = {{
+    grant_type: auth.grant === "password" ? "password" : "client_credentials",
+  }};
+  if (auth.scopes.length > 0) params.scope = auth.scopes.join(" ");
+  if (auth.grant === "password") {{
+    params.username = creds.username;
+    params.password = creds.password;
+    if (creds.clientId) params.client_id = creds.clientId;
+    if (creds.clientSecret) params.client_secret = creds.clientSecret;
+  }} else {{
+    params.client_id = creds.clientId;
+    params.client_secret = creds.clientSecret;
+  }}
+
+  // Built by hand rather than with URLSearchParams: scriptc has no static
+  // lowering for constructing it from an object (SC1090).
+  const body = Object.entries(params)
+    .map(([k, v]) => `${{encodeURIComponent(k)}}=${{encodeURIComponent(v)}}`)
+    .join("&");
+
+  const res = await fetch(auth.tokenUrl, {{
+    method: "POST",
+    headers: {{ "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }},
+    body: body,
+  }});
+  const text = await res.text();
+  if (!(res.status >= 200 && res.status < 300)) {{
+    throw new Error("OAuth2 token request " + res.status + ": " + text.slice(0, 300));
+  }}
+
+  const json = JSON.parse(text) as {{ access_token?: string; expires_in?: number }};
+  if (!json.access_token) {{
+    throw new Error("OAuth2 response missing access_token");
+  }}
+
+  const ttl = auth.ttlSeconds !== undefined ? auth.ttlSeconds : json.expires_in;
+  const lifeMs = ttl !== undefined ? ttl * 1000 : 3600_000;
+  oauthCache.set(auth.tokenUrl, {{ token: json.access_token, expiresAt: Date.now() + lifeMs }});
+  return json.access_token;
+}}
+
+function readCapturedToken(site: string): CapturedToken | undefined {{
+  const path = tokenFilePath(site);
+  if (!existsSync(path)) return undefined;
+  try {{
+    return JSON.parse(readFileSync(path, "utf-8")) as CapturedToken;
+  }} catch {{
+    return undefined;
+  }}
+}}
+
+// Resolve the token for an operation's auth. Returns undefined for `none`.
+// Throws or exits for a missing credential; Mode B exits non-zero with the
+// reauth hint rather than attempting a browser flow inside a headless client.
+async function resolveToken(auth: Auth): Promise<ResolvedToken | undefined> {{
+  if (auth.kind === "none") return undefined;
+
+  if (auth.kind === "apiKey") {{
+    const token = readSecret(auth.secretRef);
+    return {{ token, use: {{ location: auth.location, name: auth.name, valuePrefix: auth.valuePrefix }} }};
+  }}
+
+  if (auth.kind === "oAuth2") {{
+    const token = await acquireOAuth2Token(auth);
+    return {{ token, use: auth.use }};
+  }}
+
+  // browserBootstrappedToken: read the captured file, never open a browser here.
+  const cached = readCapturedToken(auth.site);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expired = cached !== undefined && cached.expiresAt <= nowSeconds;
+  if (cached === undefined || (expired && auth.promptReauth)) {{
+    console.error("run `surfacer auth login " + auth.site + "` then retry");
+    process.exit(1);
+  }}
+  return {{ token: (cached as CapturedToken).token, use: auth.use }};
 }}
 
 /**
@@ -129,7 +341,8 @@ function buildHelp(): string {{
   lines.push("COMMANDS");
   for (const op of OPERATIONS) {{
     const described = addsNothing(op.name, op.description) ? "" : op.description;
-    lines.push(("  " + pad(op.name, width) + "  " + described).trimEnd());
+    const lock = op.auth.kind === "none" ? "" : " (needs auth)";
+    lines.push(("  " + pad(op.name, width) + "  " + described + lock).trimEnd());
     if (op.params.length > 0) {{
       const flags: string[] = [];
       for (const p of op.params) {{
@@ -168,6 +381,24 @@ function withQuery(url: string, args: Map<string, string>): string {{
   return url + "?" + parts.join("&");
 }}
 
+// Attach a resolved token per its TokenUse: a header, or a query param on the
+// URL. Returns the (possibly rewritten) URL and the headers to send.
+function attachToken(
+  url: string,
+  resolved: ResolvedToken | undefined,
+): {{ url: string; headers: Record<string, string> }} {{
+  const headers: Record<string, string> = {{}};
+  if (resolved === undefined) return {{ url, headers }};
+  const prefix = resolved.use.valuePrefix !== undefined ? resolved.use.valuePrefix : "";
+  const value = prefix + resolved.token;
+  if (resolved.use.location === "header") {{
+    headers[resolved.use.name] = value;
+    return {{ url, headers }};
+  }}
+  const sep = url.indexOf("?") >= 0 ? "&" : "?";
+  return {{ url: url + sep + encode(resolved.use.name) + "=" + encode(value), headers }};
+}}
+
 async function run(argv: string[]): Promise<number> {{
   const command = argv.length > 0 ? argv[0] : "";
 
@@ -197,15 +428,18 @@ async function run(argv: string[]): Promise<number> {{
   }}
 
   const args = parseArgs(argv.slice(1));
-  const url = withQuery(BASE + op.path, args);
+  const baseUrl = withQuery(BASE + op.path, args);
 
-  const res = await fetch(url);
+  const resolved = await resolveToken(authForOperation(op.name));
+  const attached = attachToken(baseUrl, resolved);
+
+  const res = await fetch(attached.url, {{ headers: attached.headers }});
   const body = await res.text();
 
   if (wantsJson) {{
     console.log(body);
   }} else {{
-    console.log(JSON.stringify({{ status: res.status, url: url, bytes: body.length }}));
+    console.log(JSON.stringify({{ status: res.status, url: attached.url, bytes: body.length }}));
   }}
 
   return res.status >= 200 && res.status < 300 ? 0 : 1;
@@ -243,6 +477,127 @@ fn render_params(params: &[ParamDescriptor]) -> String {
     rendered
 }
 
+/// Render the resolved `AuthMode` as a TS `Auth` object literal.
+///
+/// `None` (and an absent auth) become `{ kind: "none" }`, so the emitted
+/// program always has a well-typed value to branch on. The other modes carry
+/// only what a headless client needs at runtime; secrets are named, never
+/// inlined (AU-R8). For `BrowserBootstrappedToken` the site name is inlined so
+/// the client can bake the token path with no descriptor at hand.
+fn render_auth(mode: Option<&AuthMode>, site: &str) -> String {
+    match mode {
+        None | Some(AuthMode::None) => r#"{ kind: "none" }"#.to_string(),
+        Some(AuthMode::ApiKey(api)) => {
+            let prefix = api
+                .value_prefix
+                .as_deref()
+                .map(|p| format!(", valuePrefix: {}", quote(&escape_ts(p))))
+                .unwrap_or_default();
+            format!(
+                r#"{{ kind: "apiKey", location: {}, name: {}{}, secretRef: {} }}"#,
+                quote(location_name(&api.location)),
+                quote(&escape_ts(&api.name)),
+                prefix,
+                render_secret_ref(&api.secret_ref),
+            )
+        }
+        Some(AuthMode::OAuth2(oauth)) => {
+            let grant = match oauth.grant {
+                OAuth2Grant::Password => "password",
+                // AuthorizationCode has no headless token URL flow; it only
+                // exists inside Mode B in the IR. Map it to clientCredentials
+                // here so the emitted union stays the two headless grants.
+                OAuth2Grant::ClientCredentials | OAuth2Grant::AuthorizationCode => {
+                    "clientCredentials"
+                }
+            };
+            let scopes = oauth
+                .scopes
+                .iter()
+                .map(|s| quote(&escape_ts(s)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let use_ = render_token_use_from_oauth(oauth.token_use.as_ref());
+            let ttl = oauth
+                .ttl
+                .as_ref()
+                .map(|t| format!(", ttlSeconds: {}", t.seconds))
+                .unwrap_or_default();
+            let reacquire = oauth
+                .ttl
+                .as_ref()
+                .map(|t| matches!(t.on_expiry, RenewalStrategy::Reacquire))
+                .unwrap_or(true);
+            format!(
+                r#"{{ kind: "oAuth2", grant: {}, tokenUrl: {}, scopes: [{}], credentials: {}, use: {}{}, reacquire: {} }}"#,
+                quote(grant),
+                quote(&escape_ts(&oauth.token_url)),
+                scopes,
+                render_secret_ref(&oauth.credentials),
+                use_,
+                ttl,
+                reacquire,
+            )
+        }
+        Some(AuthMode::BrowserBootstrappedToken(browser)) => {
+            // The site is inlined so the standalone binary can bake the token
+            // path (`~/.surfacer/sites/<site>/token.json`) with no descriptor
+            // and no Rust path helper at hand. `promptReauth` records the only
+            // honest renewal for a browser-minted token: a human must re-run
+            // `surfacer auth login`.
+            let prompt = matches!(browser.ttl.on_expiry, RenewalStrategy::PromptReauth);
+            format!(
+                r#"{{ kind: "browserBootstrappedToken", site: {}, use: {}, ttlSeconds: {}, promptReauth: {} }}"#,
+                quote(&escape_ts(site)),
+                render_token_use(&browser.use_),
+                browser.ttl.seconds,
+                prompt,
+            )
+        }
+    }
+}
+
+fn render_secret_ref(secret: &SecretRef) -> String {
+    match secret {
+        SecretRef::Env { var } => format!(r#"{{ from: "env", var: {} }}"#, quote(&escape_ts(var))),
+        SecretRef::File { path } => {
+            format!(r#"{{ from: "file", path: {} }}"#, quote(&escape_ts(path)))
+        }
+        SecretRef::Acquired => r#"{ from: "acquired" }"#.to_string(),
+    }
+}
+
+/// A `TokenUse` object literal. OAuth2 defaults to `Authorization: Bearer` when
+/// the IR omits `token_use`, matching the IR doc's stated default.
+fn render_token_use_from_oauth(use_: Option<&TokenUse>) -> String {
+    match use_ {
+        Some(u) => render_token_use(u),
+        None => r#"{ location: "header", name: "Authorization", valuePrefix: "Bearer " }"#
+            .to_string(),
+    }
+}
+
+fn render_token_use(use_: &TokenUse) -> String {
+    let prefix = use_
+        .value_prefix
+        .as_deref()
+        .map(|p| format!(", valuePrefix: {}", quote(&escape_ts(p))))
+        .unwrap_or_default();
+    format!(
+        r#"{{ location: {}, name: {}{} }}"#,
+        quote(location_name(&use_.location)),
+        quote(&escape_ts(&use_.name)),
+        prefix,
+    )
+}
+
+fn location_name(location: &CredentialLocation) -> &'static str {
+    match location {
+        CredentialLocation::Header => "header",
+        CredentialLocation::Query => "query",
+    }
+}
+
 fn quote(value: &str) -> String {
     format!("\"{value}\"")
 }
@@ -257,12 +612,6 @@ fn escape_ts(input: &str) -> String {
 
 fn base_url(source_url: &str) -> String {
     url::Url::parse(source_url)
-        .map(|u| {
-            format!(
-                "{}://{}",
-                u.scheme(),
-                u.host_str().unwrap_or("localhost")
-            )
-        })
+        .map(|u| format!("{}://{}", u.scheme(), u.host_str().unwrap_or("localhost")))
         .unwrap_or_else(|_| source_url.trim_end_matches('/').to_string())
 }
