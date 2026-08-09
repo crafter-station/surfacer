@@ -113,6 +113,31 @@ export default async function Home() {
         </p>
       </section>
 
+      <section className="mt-14 space-y-4 leading-relaxed text-neutral-600 dark:text-neutral-400">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-neutral-500">
+          Auth the others skip
+        </h2>
+        <p className="mt-4">
+          SDK generators assume a token you can mint yourself. Many portals
+          don&apos;t work that way: they hand out a session token only inside
+          their own browser login, with an audience your own client can never
+          request.
+        </p>
+        <p>
+          surfacer models that. It captures the token once from the browser,
+          then reads the API headless until it expires. A tax form that fought
+          every DOM automation becomes a handful of authenticated calls. That
+          mode is why{" "}
+          <a
+            href="https://github.com/crafter-research/sunat-cli"
+            className="underline decoration-neutral-700 underline-offset-4 hover:text-neutral-400"
+          >
+            SUNAT
+          </a>{" "}
+          reads clean today.
+        </p>
+      </section>
+
       <section className="mt-14">
         <h2 className="font-mono text-xs uppercase tracking-widest text-neutral-500">
           Install
