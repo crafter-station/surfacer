@@ -1,24 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { TARGETS, type TargetId } from "@/lib/emit";
 import type { Example } from "@/lib/types";
 
-export function Playground({ examples }: { examples: Example[] }) {
+export function Playground({
+  examples,
+  panes,
+}: {
+  examples: Example[];
+  /** Pre-highlighted HTML, keyed `${slug}:${targetId}`. */
+  panes: Record<string, string>;
+}) {
   const [slug, setSlug] = useState(examples[0]?.slug ?? "");
   const [target, setTarget] = useState<TargetId>("help");
 
   const example = examples.find((e) => e.slug === slug) ?? examples[0];
-
-  const output = useMemo(() => {
-    if (!example) return "";
-    const t = TARGETS.find((t) => t.id === target) ?? TARGETS[0];
-    try {
-      return t.emit(example.descriptor);
-    } catch (error) {
-      return `Failed to render: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  }, [example, target]);
 
   if (!example) {
     return (
@@ -28,56 +25,52 @@ export function Playground({ examples }: { examples: Example[] }) {
     );
   }
 
+  const html = panes[`${example.slug}:${target}`] ?? "";
   const opCount = example.descriptor.operations.length;
-  const paramCount =
-    example.descriptor.http?.endpoints.reduce(
-      (sum, e) => sum + (e.params?.length ?? 0),
-      0,
-    ) ?? 0;
 
   return (
-    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800">
-      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
+    <div className="overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-900">
+      <div className="flex items-center gap-1 border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-900">
         <select
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
-          className="rounded border border-neutral-300 bg-transparent px-2 py-1 text-sm dark:border-neutral-700"
+          className="mr-1 rounded bg-transparent px-1.5 py-1 font-mono text-xs text-neutral-600 outline-none hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
           aria-label="Descriptor"
         >
           {examples.map((e) => (
             <option key={e.slug} value={e.slug}>
-              {e.descriptor.meta.displayName}
+              {e.descriptor.meta.siteName}
             </option>
           ))}
         </select>
 
-        <div className="flex gap-1" role="tablist" aria-label="Emit target">
-          {TARGETS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={target === t.id}
-              onClick={() => setTarget(t.id)}
-              className={`rounded px-2 py-1 font-mono text-xs transition-colors ${
-                target === t.id
-                  ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-                  : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-900"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {TARGETS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            aria-pressed={target === t.id}
+            onClick={() => setTarget(t.id)}
+            className={`rounded px-2 py-1 font-mono text-xs transition-colors ${
+              target === t.id
+                ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100"
+                : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
 
-        <span className="ml-auto font-mono text-xs text-neutral-500">
-          {opCount} operations, {paramCount} params
+        <span className="ml-auto pr-1 font-mono text-xs text-neutral-400 dark:text-neutral-600">
+          {opCount} ops
         </span>
       </div>
 
-      <pre className="max-h-96 overflow-auto p-4 font-mono text-xs leading-relaxed">
-        <code>{output}</code>
-      </pre>
+      <div
+        className="max-h-80 overflow-auto p-4 font-mono text-xs leading-relaxed [&_pre]:bg-transparent"
+        // Shiki output, generated on the server from a checked-in descriptor.
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   );
 }

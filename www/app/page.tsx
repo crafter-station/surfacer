@@ -1,3 +1,5 @@
+import { TARGETS } from "@/lib/emit";
+import { highlight } from "@/lib/highlight";
 import { listExamples } from "@/lib/ir";
 import { Playground } from "./playground";
 
@@ -6,97 +8,140 @@ const REPO = "https://github.com/crafter-station/surfacer";
 export default async function Home() {
   const examples = await listExamples();
 
+  // Shiki runs on the server, so every pane is highlighted at build time and
+  // the client only swaps which one is visible.
+  const panes: Record<string, string> = {};
+  await Promise.all(
+    examples.flatMap((example) =>
+      TARGETS.map(async (target) => {
+        panes[`${example.slug}:${target.id}`] = await highlight(
+          target.emit(example.descriptor),
+          target.lang,
+        );
+      }),
+    ),
+  );
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16 sm:py-24">
+    <main className="mx-auto max-w-2xl px-6 py-20 sm:py-28">
       <header>
-        <h1 className="font-mono text-2xl font-semibold tracking-tight">
-          surfacer
-        </h1>
-        <p className="mt-4 text-lg leading-relaxed text-neutral-700 dark:text-neutral-300">
-          Generate the interface instead of writing it. Map a surface once, emit
-          CLIs, agent tools, and native binaries that stay consistent because
-          nothing hand-wrote them.
+        <div className="flex items-center gap-2.5">
+          <svg
+            viewBox="0 0 64 64"
+            fill="none"
+            aria-hidden="true"
+            className="h-5 w-5 text-neutral-900 dark:text-neutral-100"
+          >
+            <rect
+              x="4"
+              y="18"
+              width="24"
+              height="24"
+              rx="4"
+              stroke="currentColor"
+              strokeWidth="3"
+            />
+            <path
+              d="M28 30h8"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+            <path
+              d="M36 30V12h6"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M36 30h6"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+            <path
+              d="M36 30v18h6"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="50" cy="12" r="6" fill="currentColor" />
+            <circle cx="50" cy="30" r="6" fill="currentColor" />
+            <circle cx="50" cy="48" r="6" fill="currentColor" />
+          </svg>
+          <h1 className="font-mono text-xl font-medium tracking-tight">
+            surfacer
+          </h1>
+        </div>
+        <p className="mt-3 text-balance text-lg leading-snug text-neutral-600 dark:text-neutral-400">
+          Generate the interface instead of writing it.
         </p>
       </header>
 
-      <section className="mt-12">
-        <p className="leading-relaxed text-neutral-600 dark:text-neutral-400">
-          Software is increasingly operated by agents rather than people, and
-          the interfaces they reach for were designed for humans. A CLI written
-          by hand accumulates inconsistencies nobody notices until an agent hits
-          them: <code className="font-mono text-sm">--json</code> on some
-          commands and not others, a decorative header that breaks the parse, a
-          subcommand missing from{" "}
-          <code className="font-mono text-sm">--help</code> so the agent never
-          learns it exists. Each one is a retry, a wasted token, or a wrong
-          answer.
+      <section className="mt-14 space-y-4 leading-relaxed text-neutral-600 dark:text-neutral-400">
+        <p>
+          Hand-written CLIs drift.{" "}
+          <code className="font-mono text-sm">--json</code> lands on some
+          commands, a banner breaks the parse, a subcommand never reaches{" "}
+          <code className="font-mono text-sm">--help</code>. Every gap costs an
+          agent a retry.
         </p>
-        <p className="mt-4 leading-relaxed text-neutral-600 dark:text-neutral-400">
-          surfacer removes the remembering. It maps a surface once into a
-          declarative intermediate representation, then generates interfaces
-          from it. Every command gets the same flag handling, the same JSON
-          output, the same help, because one emitter wrote all of them. When the
-          surface changes, you re-run recon instead of rewriting the client.
-        </p>
-        <p className="mt-4 leading-relaxed text-neutral-600 dark:text-neutral-400">
-          That matters most where no interface exists at all. Most of the useful
-          internet has no documented API, and reaching it means either paying an
-          LLM on every run, or hand-writing a client that breaks the next time
-          the site moves. That is why unofficial clients die: yt-dlp runs three
-          release channels to keep up, and spotify-tui was abandoned when
-          patching stopped scaling.
+        <p>
+          surfacer maps a surface once, then generates every interface from that
+          one descriptor. When the surface moves, you re-run recon.
         </p>
       </section>
 
-      <section className="mt-12">
-        <h2 className="font-mono text-sm uppercase tracking-wider text-neutral-500">
+      <section className="mt-14">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-neutral-500">
           One IR, many interfaces
         </h2>
-        <p className="mt-3 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-          Every descriptor below is read straight from{" "}
-          <code className="font-mono text-xs">examples/</code> in the repo. Pick
-          one, pick a target, and see what the emitters produce.
-        </p>
         <div className="mt-4">
-          <Playground examples={examples} />
+          <Playground examples={examples} panes={panes} />
         </div>
-      </section>
-
-      <section className="mt-12">
-        <h2 className="font-mono text-sm uppercase tracking-wider text-neutral-500">
-          Install
-        </h2>
-        <pre className="mt-3 overflow-x-auto rounded-lg border border-neutral-200 p-4 font-mono text-xs dark:border-neutral-800">
-          <code>
-            {`curl -fsSL https://raw.githubusercontent.com/crafter-station/surfacer/main/install.sh | sh`}
-          </code>
-        </pre>
         <p className="mt-3 text-sm text-neutral-500">
-          No release is published yet. Until one is, build from source with{" "}
-          <code className="font-mono text-xs">
-            cargo install --git {REPO} surfacer
-          </code>
+          Read live from{" "}
+          <a
+            href={`${REPO}/tree/main/examples`}
+            className="underline decoration-neutral-700 underline-offset-4 hover:text-neutral-400"
+          >
+            examples/
+          </a>
           .
         </p>
       </section>
 
-      <footer className="mt-16 border-t border-neutral-200 pt-6 text-sm dark:border-neutral-800">
+      <section className="mt-14">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-neutral-500">
+          Install
+        </h2>
+        <pre className="mt-4 overflow-x-auto rounded-md border border-neutral-200 p-4 font-mono text-xs dark:border-neutral-900">
+          <code>curl -fsSL https://surfacer.dev/install.sh | sh</code>
+        </pre>
+        <p className="mt-3 text-sm text-neutral-500">
+          No release yet. Build from source:{" "}
+          <code className="font-mono text-xs">
+            cargo install --git {REPO} surfacer
+          </code>
+        </p>
+      </section>
+
+      <footer className="mt-20 flex items-center gap-3 border-t border-neutral-200 pt-6 text-sm text-neutral-500 dark:border-neutral-900">
         <a
           href={REPO}
-          className="text-neutral-600 underline-offset-4 hover:underline dark:text-neutral-400"
+          className="underline decoration-neutral-700 underline-offset-4 hover:text-neutral-400"
         >
-          github.com/crafter-station/surfacer
+          GitHub
         </a>
-        <span className="mx-2 text-neutral-300 dark:text-neutral-700">/</span>
-        <span className="text-neutral-500">
-          built by{" "}
-          <a
-            href="https://crafter.run"
-            className="underline-offset-4 hover:underline"
-          >
-            Crafter Station
-          </a>
-        </span>
+        <span className="text-neutral-300 dark:text-neutral-800">/</span>
+        <a
+          href="https://crafter.run"
+          className="underline decoration-neutral-700 underline-offset-4 hover:text-neutral-400"
+        >
+          Crafter Station
+        </a>
       </footer>
     </main>
   );

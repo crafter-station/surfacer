@@ -13,9 +13,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://surfacer.dev"),
   title: "surfacer",
-  description:
-    "Keep integrations against systems with no API, without rewriting them every time they change.",
+  description: "Generate the interface instead of writing it.",
+  openGraph: {
+    title: "surfacer",
+    description: "Generate the interface instead of writing it.",
+    url: "https://surfacer.dev",
+    siteName: "surfacer",
+    images: [{ url: "/og.png", width: 1200, height: 630 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "surfacer",
+    description: "Generate the interface instead of writing it.",
+    images: ["/og-twitter.png"],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
