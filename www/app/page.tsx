@@ -13,24 +13,38 @@ export default async function Home() {
           surfacer
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-neutral-700 dark:text-neutral-300">
-          Keep integrations against systems with no API, without rewriting them
-          every time they change.
+          Generate the interface instead of writing it. Map a surface once, emit
+          CLIs, agent tools, and native binaries that stay consistent because
+          nothing hand-wrote them.
         </p>
       </header>
 
       <section className="mt-12">
         <p className="leading-relaxed text-neutral-600 dark:text-neutral-400">
-          Most of the useful internet has no documented API. Reaching it means
-          either paying an LLM on every run, or hand-writing a client that
-          breaks the next time the site changes. The second option is why
-          unofficial clients die: yt-dlp runs three release channels to keep up,
-          and spotify-tui was abandoned when patching stopped scaling.
+          Software is increasingly operated by agents rather than people, and
+          the interfaces they reach for were designed for humans. A CLI written
+          by hand accumulates inconsistencies nobody notices until an agent hits
+          them: <code className="font-mono text-sm">--json</code> on some
+          commands and not others, a decorative header that breaks the parse, a
+          subcommand missing from{" "}
+          <code className="font-mono text-sm">--help</code> so the agent never
+          learns it exists. Each one is a retry, a wasted token, or a wrong
+          answer.
         </p>
         <p className="mt-4 leading-relaxed text-neutral-600 dark:text-neutral-400">
-          surfacer maps a surface once into a declarative intermediate
-          representation, then emits interfaces from it. When the surface
-          changes, you re-run recon instead of rewriting the client. Nothing
-          calls an LLM at runtime.
+          surfacer removes the remembering. It maps a surface once into a
+          declarative intermediate representation, then generates interfaces
+          from it. Every command gets the same flag handling, the same JSON
+          output, the same help, because one emitter wrote all of them. When the
+          surface changes, you re-run recon instead of rewriting the client.
+        </p>
+        <p className="mt-4 leading-relaxed text-neutral-600 dark:text-neutral-400">
+          That matters most where no interface exists at all. Most of the useful
+          internet has no documented API, and reaching it means either paying an
+          LLM on every run, or hand-writing a client that breaks the next time
+          the site moves. That is why unofficial clients die: yt-dlp runs three
+          release channels to keep up, and spotify-tui was abandoned when
+          patching stopped scaling.
         </p>
       </section>
 

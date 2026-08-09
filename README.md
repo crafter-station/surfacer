@@ -1,6 +1,6 @@
 # surfacer
 
-Keep integrations against systems with no API, without rewriting them every time they change.
+Generate the interface instead of writing it. Map a surface once, emit CLIs, agent tools, and native binaries that stay consistent because nothing hand-wrote them.
 
 ```bash
 # Map a surface once
@@ -17,9 +17,13 @@ news-ycombinator-com user id=Hunter17
 
 ## What it does
 
-Most of the useful internet has no documented API. Reaching it means either paying an LLM on every run, or hand-writing a client that breaks the next time the site changes. The second option is why unofficial clients die: yt-dlp maintains three release channels to keep up, and spotify-tui was abandoned when patching stopped scaling.
+Software is increasingly operated by agents rather than people, and the interfaces they reach for were designed for humans. A CLI written by hand accumulates inconsistencies nobody notices until an agent hits them: `--json` on some commands and not others, a decorative header that breaks the parse, a subcommand missing from `--help` so the agent never learns it exists. Each one is a retry, a wasted token, or a wrong answer.
 
-surfacer maps a surface once into a declarative intermediate representation, then emits interfaces from it. When the surface changes, you re-run recon instead of rewriting the client. Nothing calls an LLM at runtime.
+Those gaps are not carelessness. They are what happens when consistency depends on a person remembering, across years and contributors.
+
+surfacer removes the remembering. It maps a surface once into a declarative intermediate representation, then generates interfaces from it. Every command gets the same flag handling, the same JSON output, the same help, because one emitter wrote all of them. When the surface changes, you re-run recon instead of rewriting the client.
+
+That matters most where no interface exists at all. Most of the useful internet has no documented API, and reaching it means either paying an LLM on every run, or hand-writing a client that breaks the next time the site moves. The second option is why unofficial clients die: yt-dlp maintains three release channels to keep up, and spotify-tui was abandoned when patching stopped scaling.
 
 ```
                                    ┌→ native CLI binary (via scriptc)
@@ -70,6 +74,16 @@ surfacer exec <site> <command>           Run a command (used by shims)
 <site> <command> --json       Machine-readable JSON output
 <site> open [command] <index> Open item #N in browser
 ```
+
+## What the generated interface guarantees
+
+These hold for every emitted command, because one emitter produced all of them:
+
+- `--json` exists on every command and prints the response body alone. No banner, no version line, no color codes on the machine channel. Without it, commands print a one-line JSON summary of status, URL, and size.
+- `--help` lists every command and every parameter recon observed, with an example value where one was seen. A command that exists is a command help mentions.
+- Parameters carry a name and an observed example rather than a declared type, since recon reads traffic and not documentation. That is enough for help to name them instead of leaving an agent to guess from a URL.
+- Writes are blocked by default and fail loudly, naming the constant to edit. Recon cannot tell a harmless write from a destructive one, so it refuses to guess.
+- Exit codes are distinct: `0` success, `1` an unsuccessful response, `77` blocked by the trust gate, `127` unknown command.
 
 ## Requirements
 
@@ -134,11 +148,17 @@ surfacer/
 
 ## The thesis
 
-Most AI agent runtimes re-run an LLM every time an agent interacts with a website (Browser Use, Stagehand, Operator). surfacer takes the opposite approach: reverse-engineer the site once, emit a deterministic interface, use it forever. One LLM pass during recon, zero tokens at runtime.
+Compiling agent behavior to a reusable artifact is an active research area, and running the model once at design time rather than on every execution is not a new idea. surfacer takes two positions that are less common.
 
-## Target sites
+**The IR is neutral.** Comparable systems emit a plan their own runtime consumes; adopting the tool means adopting the runtime. Here the descriptor is a plain JSON file, and every consumer is downstream of it, including consumers nobody has written yet. The site under `www/` is one: it renders the emitters without importing the CLI.
 
-surfacer targets sites **without official CLIs or APIs**: government portals, banks, regional SaaS, legacy systems. It does not compete with vendor CLIs (gh, stripe, vercel, aws).
+**Recon comes first.** Most work in this space starts from a task already defined, and makes repeating it cheaper. surfacer starts earlier, from a surface nobody documented, and asks what it exposes at all.
+
+## Target surfaces
+
+surfacer targets surfaces **without official CLIs or APIs**: government portals, internal systems, regional SaaS, legacy software. It does not compete with vendor CLIs like gh, stripe, or aws.
+
+Prefer surfaces you already have the right to reach: your own accounts, your company's own systems, public records you are entitled to read. The generated interface inherits whatever permission you already had, and nothing more.
 
 ## Status
 
