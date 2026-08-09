@@ -154,3 +154,18 @@ fn quotes_in_descriptions_do_not_break_the_emitted_program() {
         "quotes must be escaped and newlines flattened"
     );
 }
+
+#[test]
+fn the_program_drops_descriptions_that_restate_the_command() {
+    let out = surfacer_emit_cli::emit_ts_cli(&descriptor_with(&[("list", "read", &[])]));
+
+    assert!(
+        out.contains("function addsNothing("),
+        "recon derives description and command from the same path, so the \
+         emitted program must decide at runtime whether to print both"
+    );
+    assert!(
+        out.contains("addsNothing(op.name, op.description)"),
+        "the help loop must consult it"
+    );
+}

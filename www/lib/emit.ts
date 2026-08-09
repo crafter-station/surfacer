@@ -27,6 +27,19 @@ function bareUrl(descriptor: SiteDescriptor, op: OperationDescriptor): string {
   return base + path;
 }
 
+/**
+ * True when a description carries no information the command name lacks.
+ *
+ * Recon derives both from the same path, so `index-html` becomes the command
+ * and `index html` becomes its description. Comparing them with separators
+ * removed catches every variant of that.
+ */
+function addsNothing(command: string, description: string): boolean {
+  const squash = (value: string) =>
+    value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return description.trim() === "" || squash(command) === squash(description);
+}
+
 export function emitHelp(descriptor: SiteDescriptor): string {
   const width = Math.max(
     ...descriptor.operations.map((op) => op.commandPath.join(" ").length),
@@ -43,7 +56,8 @@ export function emitHelp(descriptor: SiteDescriptor): string {
 
   for (const op of descriptor.operations) {
     const name = op.commandPath.join(" ");
-    lines.push(`  ${name.padEnd(width)}  ${op.description}`);
+    const description = addsNothing(name, op.description) ? "" : op.description;
+    lines.push(`  ${name.padEnd(width)}  ${description}`.trimEnd());
     const params = paramsFor(descriptor, op);
     if (params.length > 0) {
       const flags = params
@@ -132,7 +146,7 @@ ${tools}
 }
 
 export const TARGETS = [
-  { id: "help", label: "help", lang: "text", emit: emitHelp },
+  { id: "help", label: "help", lang: "clihelp", emit: emitHelp },
   { id: "ts-cli", label: "ts-cli", lang: "ts", emit: emitTsCli },
   { id: "just-bash", label: "just-bash", lang: "js", emit: emitJustBash },
 ] as const;

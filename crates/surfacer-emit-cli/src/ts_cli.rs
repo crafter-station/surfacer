@@ -96,6 +96,17 @@ function findOperation(name: string): Operation | undefined {{
   return undefined;
 }}
 
+/**
+ * True when a description carries no information the command name lacks.
+ *
+ * Recon derives both from the same path, so `index-html` becomes the command
+ * and `index html` becomes its description. Printing both wastes a column.
+ */
+function addsNothing(command: string, description: string): boolean {{
+  const squash = (value: string) => value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return description.trim() === "" || squash(command) === squash(description);
+}}
+
 function pad(text: string, width: number): string {{
   let out = text;
   while (out.length < width) out = out + " ";
@@ -116,7 +127,8 @@ function buildHelp(): string {{
   lines.push("");
   lines.push("COMMANDS");
   for (const op of OPERATIONS) {{
-    lines.push("  " + pad(op.name, width) + "  " + op.description);
+    const described = addsNothing(op.name, op.description) ? "" : op.description;
+    lines.push(("  " + pad(op.name, width) + "  " + described).trimEnd());
     if (op.params.length > 0) {{
       const flags: string[] = [];
       for (const p of op.params) {{

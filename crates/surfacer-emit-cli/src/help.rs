@@ -8,6 +8,22 @@ pub fn build_help_text_colored(descriptor: &surfacer_ir::SiteDescriptor) -> Stri
     build_help_text_impl(descriptor, true)
 }
 
+/// True when a description carries no information the command name lacks.
+///
+/// Recon derives both from the same path, so `index-html` becomes the command
+/// and `index html` becomes its description. Comparing them with separators
+/// removed catches every variant of that.
+fn adds_nothing(command: &str, description: &str) -> bool {
+    fn squash(value: &str) -> String {
+        value
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect()
+    }
+    description.trim().is_empty() || squash(command) == squash(description)
+}
+
 fn build_help_text_impl(descriptor: &surfacer_ir::SiteDescriptor, color: bool) -> String {
     let site = &descriptor.meta.site_name;
     let display = &descriptor.meta.display_name;
@@ -17,24 +33,34 @@ fn build_help_text_impl(descriptor: &surfacer_ir::SiteDescriptor, color: bool) -
     let mut out = String::new();
 
     if color {
-        out.push_str(&format!("{}\n\n", format!("{site} — {display}").bold()));
+        out.push_str(&format!("{}\n\n", format!("{site} - {display}").bold()));
         out.push_str(&format!("{}\n", "USAGE".dimmed()));
         out.push_str(&format!("  {} {} {}\n\n", site.cyan(), "<command>".white(), "[flags]".dimmed()));
         out.push_str(&format!("{}\n", "COMMANDS".dimmed()));
     } else {
-        out.push_str(&format!("{site} — {display}\n\n"));
+        out.push_str(&format!("{site} - {display}\n\n"));
         out.push_str("USAGE\n");
         out.push_str(&format!("  {site} <command> [flags]\n\n"));
         out.push_str("COMMANDS\n");
     }
 
     for row in &rows {
+        // Descriptions are derived from the same path the command name comes
+        // from, so most of them restate it. Printing `ask  ask` costs a column
+        // and tells nobody anything.
+        let description = if adds_nothing(&row.command, &row.description) {
+            ""
+        } else {
+            row.description.as_str()
+        };
+
         if color {
             out.push_str(&format!("  {:width$}  {}\n",
-                row.command.green(), row.description.dimmed(), width = cmd_width));
+                row.command.green(), description.dimmed(), width = cmd_width));
         } else {
             out.push_str(&format!("  {:width$}  {}\n",
-                row.command, row.description, width = cmd_width));
+                row.command, description, width = cmd_width).trim_end());
+            out.push('\n');
         }
         if !row.params.is_empty() {
             let flags = row
@@ -127,12 +153,20 @@ pub fn build_next_steps_after_exec(
             out.push_str("  Other commands:\n");
         }
         for row in suggestions {
+            let description = if adds_nothing(&row.command, &row.description) {
+                ""
+            } else {
+                row.description.as_str()
+            };
             if color {
                 out.push_str(&format!("    {}  {}\n",
                     format!("{site} {}", row.command).cyan(),
-                    row.description.dimmed()));
+                    description.dimmed()));
             } else {
-                out.push_str(&format!("    {site} {}  {}\n", row.command, row.description));
+                out.push_str(
+                    format!("    {site} {}  {}\n", row.command, description).trim_end(),
+                );
+                out.push('\n');
             }
         }
     }
@@ -144,16 +178,18 @@ fn pick_examples(site: &str, rows: &[surfacer_ir::CommandHelpRow]) -> Vec<(Strin
     let mut examples = Vec::new();
 
     if let Some(first) = rows.first() {
-        examples.push((
-            format!("{site} {}", first.command),
-            first.description.clone(),
-        ));
+        let description = if adds_nothing(&first.command, &first.description) {
+            "Fetch and display".to_string()
+        } else {
+            first.description.clone()
+        };
+        examples.push((format!("{site} {}", first.command), description));
     }
 
     if let Some(second) = rows.get(1) {
         examples.push((
             format!("{site} {} --json", second.command),
-            format!("{} (JSON output)", second.description),
+            "Machine-readable output".to_string(),
         ));
     }
 
