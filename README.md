@@ -214,6 +214,8 @@ Peru's tax portal is the case that shaped the auth model. Its monthly-declaratio
 
 That is the browser-bootstrapped mode end to end: open the browser once to capture the token, then read the API headless for its hour. A form that fought every DOM automation becomes a handful of authenticated GETs. The [`sunat-cli`](https://github.com/crafter-research/sunat-cli) client is the first surface driving surfacer's auth work, and its recon fed the IR schema directly.
 
+The three auth states live together on one host: an OAuth2 default for SIRE, a browser-bootstrapped override for the F616 form, and an explicit public lookup for the padron. [`examples/sunat-declaraciones.surfacer.json`](./examples/sunat-declaraciones.surfacer.json) is a curated fixture, not recon output, that carries all three. Every auth field in it was verified live. `surfacer emit openapi` on it produces a spec that validates, with `oauth2` on the SIRE op, `security: []` on the padron op, and an `x-surfacer-auth` extension on F616 where OpenAPI has no vocabulary for the browser mode.
+
 ## Target surfaces
 
 surfacer targets surfaces **without official CLIs or APIs**: government portals, internal systems, regional SaaS, legacy software. It does not compete with vendor CLIs like gh, stripe, or aws.
