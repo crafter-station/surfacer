@@ -1,11 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-use crate::OperationKind;
+use crate::{AuthMode, OperationKind};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpSurface {
     pub endpoints: Vec<HttpEndpoint>,
+    /// Auth applied to every operation on this surface unless the operation
+    /// overrides it. `None` means the surface was reached unauthenticated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthMode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

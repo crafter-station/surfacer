@@ -1,6 +1,26 @@
-# surfacer
+<p align="center">
+  <a href="https://surfacer.dev" target="_blank">
+    <img src="https://raw.githubusercontent.com/Railly/crafter-station/main/public/logo.png" height="64" alt="Crafter Station">
+  </a>
+  <br />
+  <h1 align="center">surfacer</h1>
+</p>
 
-Generate the interface instead of writing it. Map a surface once, emit CLIs, agent tools, and native binaries that stay consistent because nothing hand-wrote them.
+<p align="center">
+  Generate the interface instead of writing it.
+</p>
+
+<div align="center">
+
+[![Release](https://img.shields.io/github/v/release/crafter-station/surfacer?display_name=tag&sort=semver&label=release)](https://github.com/crafter-station/surfacer/releases)
+[![CI](https://github.com/crafter-station/surfacer/actions/workflows/ci.yml/badge.svg)](https://github.com/crafter-station/surfacer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
+[![Built with Crafter Station](https://img.shields.io/badge/built%20with-Crafter%20Station-orange)](https://crafterstation.com)
+[![surfacer.dev](https://img.shields.io/badge/site-surfacer.dev-black)](https://surfacer.dev)
+
+</div>
+
+Map a surface once, emit CLIs, agent tools, and native binaries that stay consistent because nothing hand-wrote them.
 
 ```bash
 # Map a surface once
@@ -50,6 +70,18 @@ HTTP endpoints and accessibility trees today. The IR models operations and trans
 3. **Use**. The emitted interface fetches live data, extracts structured content, and renders it as a formatted list or JSON. Write operations are blocked by default: recon cannot tell a harmless write from a destructive one.
 
 4. **Re-run**. `surfacer check` fingerprints canary endpoints to detect drift. When the surface moves, recon again and re-emit every target.
+
+## Auth
+
+Many surfaces worth reaching sit behind a login. The IR models how a surface authenticates, so the emitted interface inherits it instead of leaving each client to reinvent the flow.
+
+Three shapes, because real portals use more than one:
+
+- **OAuth2, headless.** The client mints its own token from a password or client-credentials grant. The ordinary case, and the one existing SDK generators already cover.
+- **A static key or bearer** sent as a header on every request. The secret is never in the IR; the descriptor only names where the client reads it.
+- **Browser-bootstrapped token.** Some portals mint a session token only inside their own browser login, with an audience a self-registered client can never request. surfacer captures that token once from the browser, then replays it headless until it expires. This is the mode no SDK generator models, and it is what a large share of government portals actually require.
+
+The IR keeps acquisition and use separate: the browser step runs once, the headless calls run for the token's whole life. Auth attaches at the surface level as a default and can be overridden per operation, because one host often mixes a public lookup, an OAuth2 API, and a browser-only form.
 
 ## Commands
 
@@ -176,6 +208,12 @@ Compiling agent behavior to a reusable artifact is an active research area, and 
 
 **Recon comes first.** Most work in this space starts from a task already defined, and makes repeating it cheaper. surfacer starts earlier, from a surface nobody documented, and asks what it exposes at all.
 
+## A real target: SUNAT
+
+Peru's tax portal is the case that shaped the auth model. Its monthly-declaration form looks like a server-rendered page and behaves like one: driving the DOM never works, because the fields stay disabled until a background call returns. Underneath sits a JSON API, and reaching it needs a session token the portal mints only during its own browser login.
+
+That is the browser-bootstrapped mode end to end: open the browser once to capture the token, then read the API headless for its hour. A form that fought every DOM automation becomes a handful of authenticated GETs. The [`sunat-cli`](https://github.com/crafter-research/sunat-cli) client is the first surface driving surfacer's auth work, and its recon fed the IR schema directly.
+
 ## Target surfaces
 
 surfacer targets surfaces **without official CLIs or APIs**: government portals, internal systems, regional SaaS, legacy software. It does not compete with vendor CLIs like gh, stripe, or aws.
@@ -184,7 +222,7 @@ Prefer surfaces you already have the right to reach: your own accounts, your com
 
 ## Status
 
-Early development. The pipeline works end-to-end for public HTML sites. Auth support exists but is minimal. Extractors auto-detect repeating patterns but field naming uses heuristics (LLM naming coming soon).
+Early development. The pipeline works end-to-end for public HTML sites. The IR now models three auth shapes including the browser-bootstrapped token described above; emitter support for them lands target by target. Extractors auto-detect repeating patterns but field naming uses heuristics (LLM naming coming soon).
 
 ## License
 
