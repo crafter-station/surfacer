@@ -1095,6 +1095,15 @@ async fn auth_login(args: AuthLoginArgs) -> anyhow::Result<()> {
         .context("failed to connect to browser. Is Comet running with --remote-debugging-port=9222?")?;
 
     ok(&format!("Browser opened: {}", login_url));
+
+    // If the descriptor wants a browser-bootstrapped token, record the login
+    // navigation into a HAR so the token can be pulled from it after ENTER.
+    let token_auth = find_browser_token_auth(&descriptor);
+    if token_auth.is_some() {
+        surfacer_probe::agent_browser::start_har_capture(&session).await
+            .context("failed to start HAR capture for token login")?;
+    }
+
     eprintln!();
     step("Waiting for you to log in... press ENTER when done.");
     wait_for_enter().await?;
@@ -1104,9 +1113,68 @@ async fn auth_login(args: AuthLoginArgs) -> anyhow::Result<()> {
     let session_file = session_dir.join("session-name");
     std::fs::write(&session_file, &session_name)?;
 
+    if let Some(auth) = token_auth {
+        capture_and_store_token(&session, auth, &session_dir).await?;
+    }
+
     ok(&format!("Session saved for '{}'. Commands will now use authenticated state.", args.site));
     hint(&format!("Try: {} --help", args.site));
 
+    Ok(())
+}
+
+/// Find the first `BrowserBootstrappedToken` auth in the descriptor, checking
+/// the HTTP surface default first, then per-operation overrides. `auth login`
+/// only needs the token capture spec, which is site-wide in practice.
+fn find_browser_token_auth(
+    descriptor: &surfacer_ir::SiteDescriptor,
+) -> Option<&surfacer_ir::BrowserBootstrappedTokenAuth> {
+    if let Some(surfacer_ir::AuthMode::BrowserBootstrappedToken(auth)) =
+        descriptor.http.as_ref().and_then(|h| h.auth.as_ref())
+    {
+        return Some(auth);
+    }
+    descriptor.operations.iter().find_map(|op| match op.auth.as_ref() {
+        Some(surfacer_ir::AuthMode::BrowserBootstrappedToken(auth)) => Some(auth),
+        _ => None,
+    })
+}
+
+/// Stop the HAR, extract the token per the capture spec, decode its expiry, and
+/// persist it as `token.json` next to `session-name`. Ports the proven logic in
+/// crafter-research/sunat-cli/packages/cli/src/plataforma/session.ts.
+async fn capture_and_store_token(
+    session: &surfacer_probe::ProbeSession,
+    auth: &surfacer_ir::BrowserBootstrappedTokenAuth,
+    session_dir: &Path,
+) -> anyhow::Result<()> {
+    let har_path = surfacer_probe::agent_browser::stop_har_capture(session).await
+        .context("failed to stop HAR capture for token login")?;
+    let bytes = std::fs::read(&har_path)
+        .with_context(|| format!("failed to read captured HAR at {}", har_path.display()))?;
+    let har = surfacer_probe::har::parse_har(&bytes)?;
+
+    let token = surfacer_probe::extract_token(&har, &auth.acquire.capture)?
+        .ok_or_else(|| anyhow!(
+            "no token found in the login network log. Navigate into the authenticated form first, then press ENTER (the token only appears once the form loads)."
+        ))?;
+
+    let expires_at = crate::token_cache::decode_exp(&token)?;
+    let captured_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("system clock before unix epoch")?
+        .as_secs();
+    let cache = crate::token_cache::TokenCache {
+        token,
+        expires_at,
+        captured_at,
+    };
+
+    let token_file = session_dir.join("token.json");
+    std::fs::write(&token_file, serde_json::to_string_pretty(&cache)?)
+        .with_context(|| format!("failed to write {}", token_file.display()))?;
+
+    ok(&format!("Token captured (expires at {expires_at})."));
     Ok(())
 }
 
@@ -1439,4 +1507,81 @@ fn timestamp_string() -> anyhow::Result<String> {
 
 pub fn flush_stdout() -> anyhow::Result<()> {
     io::stdout().flush().context("failed to flush stdout")
+}
+
+#[cfg(test)]
+mod auth_login_tests {
+    use super::find_browser_token_auth;
+    use surfacer_ir::{
+        AuthMode, BrowserAcquisition, BrowserBootstrappedTokenAuth, CredentialLocation,
+        HttpSurface, Provenance, ProvenanceTechnique, RenewalStrategy, SiteDescriptor, SiteMeta,
+        TokenCapture, TokenTtl, TokenUse,
+    };
+
+    fn descriptor_with_surface_auth(auth: Option<AuthMode>) -> SiteDescriptor {
+        SiteDescriptor {
+            meta: SiteMeta {
+                site_name: "sunat".into(),
+                display_name: "SUNAT".into(),
+                source_url: "https://www.sunat.gob.pe".into(),
+                ir_version: "0.1.0".into(),
+            },
+            provenance: Provenance {
+                generated_at: "2026-08-09T00:00:00Z".into(),
+                technique: ProvenanceTechnique::Http,
+                classifier_bucket: "FormSessionLegacy".into(),
+                probe_duration_sec: 1,
+            },
+            operations: Vec::new(),
+            http: Some(HttpSurface {
+                endpoints: Vec::new(),
+                auth,
+            }),
+            ax: None,
+        }
+    }
+
+    fn browser_token_mode() -> AuthMode {
+        AuthMode::BrowserBootstrappedToken(BrowserBootstrappedTokenAuth {
+            acquire: BrowserAcquisition {
+                login_url: "https://e-menu.sunat.gob.pe/login".into(),
+                capture: TokenCapture::RequestQueryParam {
+                    url_contains: "servletAcceso".into(),
+                    param: "idCache".into(),
+                },
+                session_ref: Some("sunat".into()),
+            },
+            use_: TokenUse {
+                location: CredentialLocation::Header,
+                name: "IdCache".into(),
+                value_prefix: None,
+            },
+            ttl: TokenTtl {
+                seconds: 3600,
+                on_expiry: RenewalStrategy::PromptReauth,
+            },
+        })
+    }
+
+    #[test]
+    fn finds_browser_token_auth_on_surface() {
+        let descriptor = descriptor_with_surface_auth(Some(browser_token_mode()));
+        let found = find_browser_token_auth(&descriptor).expect("expected browser token auth");
+        assert!(matches!(
+            found.acquire.capture,
+            TokenCapture::RequestQueryParam { .. }
+        ));
+    }
+
+    #[test]
+    fn descriptor_without_browser_auth_does_not_capture() {
+        // A public surface (auth None) must return None, so auth login never
+        // starts HAR capture or looks for a token.
+        let descriptor = descriptor_with_surface_auth(Some(AuthMode::None));
+        assert!(find_browser_token_auth(&descriptor).is_none());
+
+        // And a descriptor with no surface auth at all.
+        let bare = descriptor_with_surface_auth(None);
+        assert!(find_browser_token_auth(&bare).is_none());
+    }
 }
