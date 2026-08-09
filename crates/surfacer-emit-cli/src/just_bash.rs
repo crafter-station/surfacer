@@ -1,3 +1,4 @@
+use crate::escaping::escape_ts as escape_js;
 use surfacer_ir::{
     resolve_auth, AuthMode, CredentialLocation, OperationKind, OperationTransport, RenewalStrategy,
     SecretRef, SiteDescriptor, TokenUse,
@@ -342,13 +343,6 @@ fn attach_token_shell(token_use: Option<&TokenUse>) -> String {
     }
 }
 
-fn escape_js(input: &str) -> String {
-    input
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', " ")
-        .replace('\r', " ")
-}
 
 fn base_url(source_url: &str) -> String {
     url::Url::parse(source_url)

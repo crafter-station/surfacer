@@ -1,3 +1,4 @@
+pub mod escaping;
 pub mod help;
 pub mod just_bash;
 pub mod manifest;
