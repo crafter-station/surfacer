@@ -145,10 +145,105 @@ ${tools}
 `;
 }
 
+/**
+ * Minimal previews of the OpenAPI and MCP emitters. The CLI produces the real
+ * artifacts; these exist so the shape is visible without installing anything.
+ */
+export function emitOpenapi(descriptor: SiteDescriptor): string {
+  const paths: Record<string, unknown> = {};
+  for (const op of descriptor.operations) {
+    const endpoint = endpointFor(descriptor, op);
+    const path = endpoint?.path.split("?")[0] ?? `/${op.commandPath.join("/")}`;
+    const params = paramsFor(descriptor, op).map((p) => ({
+      name: p.name,
+      in: "query",
+      required: false,
+      schema: p.example
+        ? { type: "string", example: p.example }
+        : { type: "string" },
+    }));
+    paths[path] = {
+      get: {
+        operationId: op.commandPath.join("_"),
+        summary: op.summary,
+        tags: [op.commandPath[0] ?? "default"],
+        ...(params.length > 0 ? { parameters: params } : {}),
+        responses: { default: { description: "Observed during recon" } },
+        "x-surfacer-operation-kind": op.operationKind,
+      },
+    };
+  }
+  return JSON.stringify(
+    {
+      openapi: "3.1.0",
+      info: {
+        title: descriptor.meta.displayName,
+        version: descriptor.meta.irVersion,
+      },
+      servers: [{ url: new URL(descriptor.meta.sourceUrl).origin }],
+      paths,
+    },
+    null,
+    2,
+  );
+}
+
+export function emitMcp(descriptor: SiteDescriptor): string {
+  const tools = descriptor.operations
+    .map((op) => {
+      const name = op.commandPath.join("_");
+      const params = paramsFor(descriptor, op);
+      const schema =
+        params.length === 0
+          ? "z.object({})"
+          : `z.object({\n${params
+              .map(
+                (p) =>
+                  `      ${p.name}: z.string().optional().describe("observed value: ${p.example ?? ""}"),`,
+              )
+              .join("\n")}\n    })`;
+      const endpoint = endpointFor(descriptor, op);
+      const path =
+        endpoint?.path.split("?")[0] ?? `/${op.commandPath.join("/")}`;
+      return `  server.registerTool(
+    "${name}",
+    {
+      description: "${op.operationKind} on ${path}",
+      inputSchema: ${schema},
+      annotations: { readOnlyHint: ${op.operationKind === "read"} },
+    },
+    async (args) => call("${name}", "${op.operationKind}", "${path}", args),
+  );`;
+    })
+    .join("\n\n");
+
+  return `import { McpServer } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import * as z from "zod/v4";
+
+const ALLOWED_KINDS = new Set(["read"]);
+
+serveStdio(() => {
+  const server = new McpServer({ name: "${descriptor.meta.siteName}", version: "${descriptor.meta.irVersion}" });
+
+${tools}
+
+  return server;
+});
+`;
+}
+
 export const TARGETS = [
   { id: "help", label: "help", lang: "clihelp", emit: emitHelp },
-  { id: "ts-cli", label: "ts-cli", lang: "ts", emit: emitTsCli },
-  { id: "just-bash", label: "just-bash", lang: "js", emit: emitJustBash },
+  { id: "ts-cli", label: "ts-cli", lang: "typescript", emit: emitTsCli },
+  { id: "mcp", label: "mcp", lang: "javascript", emit: emitMcp },
+  { id: "openapi", label: "openapi", lang: "json", emit: emitOpenapi },
+  {
+    id: "just-bash",
+    label: "just-bash",
+    lang: "javascript",
+    emit: emitJustBash,
+  },
 ] as const;
 
 export type TargetId = (typeof TARGETS)[number]["id"];

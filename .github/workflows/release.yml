@@ -37,6 +37,17 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # A tag that disagrees with Cargo.toml ships binaries reporting the wrong
+      # version, and nothing downstream would catch it.
+      - name: Check the tag matches the crate version
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          CRATE=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          if [ "$TAG" != "v$CRATE" ]; then
+            echo "tag $TAG does not match workspace version $CRATE" >&2
+            exit 1
+          fi
+
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} -p surfacer
 
@@ -45,8 +56,21 @@ jobs:
           mkdir -p dist
           tar -czf "dist/surfacer-${{ matrix.target }}.tar.gz" \
             -C "target/${{ matrix.target }}/release" surfacer
-          shasum -a 256 "dist/surfacer-${{ matrix.target }}.tar.gz" \
-            > "dist/surfacer-${{ matrix.target }}.tar.gz.sha256"
+          # shasum is macOS, sha256sum is GNU. Runners differ, so pick one.
+          if command -v sha256sum >/dev/null; then
+            SUM=sha256sum
+          else
+            SUM="shasum -a 256"
+          fi
+          cd dist
+          $SUM "surfacer-${{ matrix.target }}.tar.gz" \
+            > "surfacer-${{ matrix.target }}.tar.gz.sha256"
+
+      - name: Verify the archive runs
+        if: matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          tar -xzf "dist/surfacer-${{ matrix.target }}.tar.gz" -C /tmp
+          /tmp/surfacer --help > /dev/null
 
       - uses: actions/upload-artifact@v4
         with:

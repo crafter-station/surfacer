@@ -13,9 +13,10 @@ pub fn emit_ts_cli(descriptor: &SiteDescriptor) -> String {
     let base = base_url(source_url);
 
     let mut entries = Vec::new();
+    let names = surfacer_ir::unique_command_names(descriptor);
 
-    for op in &descriptor.operations {
-        let command = op.command_path.join(" ");
+    for (op, unique_name) in descriptor.operations.iter().zip(&names) {
+        let command = unique_name.clone();
         let description = escape_ts(&op.description);
         let kind = match op.operation_kind {
             OperationKind::Read => "read",
