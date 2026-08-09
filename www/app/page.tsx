@@ -121,10 +121,18 @@ export default async function Home() {
           <code>curl -fsSL https://surfacer.dev/install.sh | sh</code>
         </pre>
         <p className="mt-3 text-sm text-neutral-500">
-          No release yet. Build from source:{" "}
+          macOS and Linux.{" "}
+          <a
+            href={`${REPO}/releases/latest`}
+            className="underline decoration-neutral-700 underline-offset-4 hover:text-neutral-400"
+          >
+            Releases
+          </a>
+          , or build from source with{" "}
           <code className="font-mono text-xs">
             cargo install --git {REPO} surfacer
           </code>
+          .
         </p>
       </section>
 

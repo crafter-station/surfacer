@@ -101,7 +101,7 @@ These hold for every emitted command, because one emitter produced all of them:
 Skip recon. Install surfacer and a pre-generated IR for Hacker News in 4 lines:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/crafter-station/surfacer/main/install.sh | sh
+curl -fsSL https://surfacer.dev/install.sh | sh
 curl -O https://raw.githubusercontent.com/crafter-station/surfacer/main/examples/news-ycombinator-com.surfacer.json
 surfacer install ./news-ycombinator-com.surfacer.json --dest ~/.cargo/bin
 news-ycombinator-com news --json | jq '.items[].fields.title.value'
@@ -109,7 +109,7 @@ news-ycombinator-com news --json | jq '.items[].fields.title.value'
 
 That's the full pipeline against Hacker News with zero LLM tokens at runtime. More IRs in [`examples/`](./examples) (SUNAT, more on the way).
 
-The installer takes `SURFACER_VERSION` to pin a release and `SURFACER_INSTALL_DIR` to choose the destination (default `~/.local/bin`). To build from source instead:
+The installer takes `SURFACER_VERSION` to pin a release and `SURFACER_INSTALL_DIR` to choose the destination (default `~/.local/bin`). Releases carry binaries for macOS on Apple Silicon and Intel, and Linux x86_64. To build from source instead:
 
 ```bash
 cargo install --git https://github.com/crafter-station/surfacer surfacer

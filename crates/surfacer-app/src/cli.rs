@@ -68,7 +68,7 @@ fn cmd(msg: &str) {
 #[derive(Debug, Parser)]
 #[command(
     name = "surfacer",
-    about = "CLI-ify the web — turn any website into an installable CLI",
+    about = "Generate the interface instead of writing it",
     after_help = "Getting started:\n  surfacer recon <url> --auto --yes\n\nLearn more:\n  https://github.com/crafter-station/surfacer"
 )]
 pub struct Cli {
