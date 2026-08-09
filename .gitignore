@@ -3,3 +3,10 @@
 .DS_Store
 /emit/
 /surfacer-recon-*/
+
+# site
+/www/node_modules/
+/www/.next/
+/www/.vercel/
+.vercel
+.env*
