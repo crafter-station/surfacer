@@ -10,3 +10,7 @@
 /www/.vercel/
 .vercel
 .env*
+
+# HAR captures carry live cookies and tokens, never commit them
+*.har
+!fixtures/**/capture.har
