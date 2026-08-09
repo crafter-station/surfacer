@@ -28,7 +28,9 @@ That matters most where no interface exists at all. Most of the useful internet 
 ```
                                    ┌→ native CLI binary (via scriptc)
                                    ├→ CLI shim
-surface → recon → IR (JSON) ───────┼→ just-bash ExecutorConfig
+                                   ├→ MCP server
+surface → recon → IR (JSON) ───────┼→ OpenAPI 3.1 document
+                                   ├→ just-bash ExecutorConfig
                                    ├→ self-describing help
                                    └→ (your emitter here)
 ```
@@ -43,7 +45,7 @@ HTTP endpoints and accessibility trees today. The IR models operations and trans
 
 1. **Recon**. `surfacer recon <url> --auto` opens a browser, autonomously navigates the site, captures HTTP traffic, classifies the backend archetype, detects repeating content patterns, and emits a declarative IR.
 
-2. **Emit**. One IR, several targets: a CLI shim, a self-contained TypeScript program that [scriptc](https://scriptc.dev) compiles to a native binary needing no runtime, a [just-bash](https://github.com/vercel-labs/just-bash) ExecutorConfig for agents, and `--help` derived from the same descriptor.
+2. **Emit**. One IR, several targets: a CLI shim, a self-contained TypeScript program that [scriptc](https://scriptc.dev) compiles to a native binary needing no runtime, an MCP server any client can register, an OpenAPI 3.1 document for everything that already speaks OpenAPI, a [just-bash](https://github.com/vercel-labs/just-bash) ExecutorConfig, and `--help` derived from the same descriptor.
 
 3. **Use**. The emitted interface fetches live data, extracts structured content, and renders it as a formatted list or JSON. Write operations are blocked by default: recon cannot tell a harmless write from a destructive one.
 
@@ -58,6 +60,8 @@ surfacer check <site>                    Detect drift against the recorded IR
 surfacer shell [site]                    Interactive REPL over installed sites
 surfacer emit cli <ir-path>              Generate a CLI shim binary
 surfacer emit ts-cli <ir-path>           Generate a self-contained TypeScript CLI
+surfacer emit mcp <ir-path>              Generate an MCP server
+surfacer emit openapi <ir-path>          Generate an OpenAPI 3.1 document
 surfacer emit just-bash <ir-path>        Generate a just-bash ExecutorConfig
 surfacer lint <ir-path>                  Validate an IR file
 surfacer auth login <site>               Authenticate with a site
@@ -110,6 +114,24 @@ The installer takes `SURFACER_VERSION` to pin a release and `SURFACER_INSTALL_DI
 ```bash
 cargo install --git https://github.com/crafter-station/surfacer surfacer
 ```
+
+### Reach agents without installing anything
+
+An MCP server, registered with any client:
+
+```bash
+surfacer emit mcp ./news-ycombinator-com.surfacer.json
+npm install @modelcontextprotocol/server zod
+claude mcp add hn -- node emit/mcp/news-ycombinator-com.mcp.js
+```
+
+Or an OpenAPI document, which every SDK generator and HTTP client already reads:
+
+```bash
+surfacer emit openapi ./news-ycombinator-com.surfacer.json
+```
+
+The spec says only what recon observed. Response schemas are absent because recon captured bodies, not contracts, and inventing one would make the document look more authoritative than the evidence behind it.
 
 ### Emit a standalone binary
 

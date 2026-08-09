@@ -10,7 +10,7 @@ let instance: Promise<Highlighter> | undefined;
 function get(): Promise<Highlighter> {
   instance ??= createHighlighter({
     themes: ["github-dark-dimmed", "github-light"],
-    langs: ["typescript", "javascript", "bash", helpGrammar],
+    langs: ["typescript", "javascript", "json", "bash", helpGrammar],
   });
   return instance;
 }

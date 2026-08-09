@@ -205,6 +205,8 @@ pub enum EmitTargetArg {
     Cli { ir_path: PathBuf },
     JustBash { ir_path: PathBuf },
     TsCli { ir_path: PathBuf },
+    Openapi { ir_path: PathBuf },
+    Mcp { ir_path: PathBuf },
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -739,6 +741,8 @@ pub async fn emit_command(args: EmitArgs) -> anyhow::Result<std::path::PathBuf> 
         EmitTargetArg::Cli { ir_path } => (ir_path.clone(), "cli"),
         EmitTargetArg::JustBash { ir_path } => (ir_path.clone(), "just-bash"),
         EmitTargetArg::TsCli { ir_path } => (ir_path.clone(), "ts-cli"),
+        EmitTargetArg::Openapi { ir_path } => (ir_path.clone(), "openapi"),
+        EmitTargetArg::Mcp { ir_path } => (ir_path.clone(), "mcp"),
     };
     let descriptor = surfacer_ir::read_ir(&ir_path)
         .with_context(|| format!("failed to read IR from {}", ir_path.display()))?;
@@ -749,36 +753,69 @@ pub async fn emit_command(args: EmitArgs) -> anyhow::Result<std::path::PathBuf> 
         }
     }
 
-    if target_label == "ts-cli" {
+    // Targets that write a single generated file share everything but the
+    // emitter, the extension, and what to tell the user afterwards.
+    let single_file: Option<(&str, fn(&surfacer_ir::SiteDescriptor) -> String, &str)> =
+        match target_label {
+            "ts-cli" => Some(("ts", surfacer_emit_cli::emit_ts_cli, "TypeScript CLI")),
+            "openapi" => Some((
+                "openapi.json",
+                surfacer_emit_cli::emit_openapi,
+                "OpenAPI document",
+            )),
+            "mcp" => Some(("mcp.js", surfacer_emit_cli::emit_mcp_server, "MCP server")),
+            _ => None,
+        };
+
+    if let Some((extension, emit, label)) = single_file {
         let out_dir = args.out_dir.unwrap_or_else(|| {
             std::env::current_dir()
                 .unwrap_or_else(|_| PathBuf::from("."))
                 .join("emit")
-                .join("ts-cli")
+                .join(target_label)
         });
         std::fs::create_dir_all(&out_dir)
             .with_context(|| format!("failed to create {}", out_dir.display()))?;
 
         let site = &descriptor.meta.site_name;
-        let source = surfacer_emit_cli::emit_ts_cli(&descriptor);
-        let source_path = out_dir.join(format!("{site}.ts"));
+        let source = emit(&descriptor);
+        let source_path = out_dir.join(format!("{site}.{extension}"));
         std::fs::write(&source_path, &source)
             .with_context(|| format!("failed to write {}", source_path.display()))?;
 
         ok(&format!(
-            "TypeScript CLI written: {} ({}B)",
+            "{label} written: {} ({}B)",
             source_path.display(),
             source.len()
         ));
         eprintln!();
-        hint("Run it directly:");
-        cmd(&format!("scriptc run {} -- --help", source_path.display()));
-        eprintln!();
-        hint("Or compile a native binary (no runtime required):");
-        cmd(&format!(
-            "scriptc build {} --dynamic -o {site}",
-            source_path.display()
-        ));
+
+        match target_label {
+            "ts-cli" => {
+                hint("Run it directly:");
+                cmd(&format!("scriptc run {} -- --help", source_path.display()));
+                eprintln!();
+                hint("Or compile a native binary (no runtime required):");
+                cmd(&format!(
+                    "scriptc build {} --dynamic -o {site}",
+                    source_path.display()
+                ));
+            }
+            "openapi" => {
+                hint("Feed it to any OpenAPI consumer:");
+                cmd(&format!("npx @stainless-api/cli generate {}", source_path.display()));
+                cmd(&format!("restish api configure {site} {}", source_path.display()));
+            }
+            "mcp" => {
+                hint("Install its dependencies and register it:");
+                cmd("npm install @modelcontextprotocol/server zod");
+                cmd(&format!(
+                    "claude mcp add {site} -- node {}",
+                    source_path.display()
+                ));
+            }
+            _ => {}
+        }
 
         return Ok(source_path);
     }
