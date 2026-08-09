@@ -24,6 +24,22 @@ fn adds_nothing(command: &str, description: &str) -> bool {
     description.trim().is_empty() || squash(command) == squash(description)
 }
 
+/// True when a command's resolved auth requires the caller to log in first.
+///
+/// `command_help_rows` iterates `descriptor.operations` in order, so the row at
+/// index `i` describes `operations[i]`. `resolve_auth` picks the operation
+/// override, else the surface default, else `None`. Anything that is not
+/// `AuthMode::None` (and not absent) gets a lock marker.
+fn command_needs_auth(descriptor: &surfacer_ir::SiteDescriptor, index: usize) -> bool {
+    let Some(op) = descriptor.operations.get(index) else {
+        return false;
+    };
+    matches!(
+        surfacer_ir::resolve_auth(op, descriptor.http.as_ref()),
+        Some(mode) if !matches!(mode, surfacer_ir::AuthMode::None)
+    )
+}
+
 fn build_help_text_impl(descriptor: &surfacer_ir::SiteDescriptor, color: bool) -> String {
     let site = &descriptor.meta.site_name;
     let display = &descriptor.meta.display_name;
@@ -44,7 +60,7 @@ fn build_help_text_impl(descriptor: &surfacer_ir::SiteDescriptor, color: bool) -
         out.push_str("COMMANDS\n");
     }
 
-    for row in &rows {
+    for (index, row) in rows.iter().enumerate() {
         // Descriptions are derived from the same path the command name comes
         // from, so most of them restate it. Printing `ask  ask` costs a column
         // and tells nobody anything.
@@ -53,6 +69,8 @@ fn build_help_text_impl(descriptor: &surfacer_ir::SiteDescriptor, color: bool) -
         } else {
             row.description.as_str()
         };
+
+        let needs_auth = command_needs_auth(descriptor, index);
 
         if color {
             out.push_str(&format!("  {:width$}  {}\n",
@@ -74,6 +92,17 @@ fn build_help_text_impl(descriptor: &surfacer_ir::SiteDescriptor, color: bool) -
                 out.push_str(&format!("{}{}\n", indent, flags.dimmed()));
             } else {
                 out.push_str(&format!("{indent}{flags}\n"));
+            }
+        }
+        if needs_auth {
+            // A locked command shells to a runtime that resolves auth, but the
+            // human still has to bootstrap the session once. Say so, per command.
+            let hint = format!("needs: surfacer auth login {site}");
+            let indent = " ".repeat(cmd_width + 4);
+            if color {
+                out.push_str(&format!("{}{} {}\n", indent, "\u{1f512}".yellow(), hint.dimmed()));
+            } else {
+                out.push_str(&format!("{indent}\u{1f512} {hint}\n"));
             }
         }
     }
@@ -274,12 +303,103 @@ mod tests {
         }
     }
 
+    /// A descriptor where the first operation resolves to an authed mode
+    /// (Mode B override) and the second stays public (`AuthMode::None`
+    /// override against no surface default).
+    fn descriptor_with_mixed_auth() -> surfacer_ir::SiteDescriptor {
+        let mut descriptor = sample_descriptor();
+        descriptor.operations[0].auth = Some(surfacer_ir::AuthMode::BrowserBootstrappedToken(
+            surfacer_ir::BrowserBootstrappedTokenAuth {
+                acquire: surfacer_ir::BrowserAcquisition {
+                    login_url: "https://e-menu.sunat.gob.pe/cl-ti-itmenu/AutenticaMenuInternet.htm"
+                        .into(),
+                    capture: surfacer_ir::TokenCapture::RequestQueryParam {
+                        url_contains: "servletAcceso".into(),
+                        param: "idCache".into(),
+                    },
+                    session_ref: Some("sunat".into()),
+                },
+                use_: surfacer_ir::TokenUse {
+                    location: surfacer_ir::CredentialLocation::Header,
+                    name: "IdCache".into(),
+                    value_prefix: None,
+                },
+                ttl: surfacer_ir::TokenTtl {
+                    seconds: 3600,
+                    on_expiry: surfacer_ir::RenewalStrategy::PromptReauth,
+                },
+            },
+        ));
+        descriptor.operations[1].auth = Some(surfacer_ir::AuthMode::None);
+        descriptor
+    }
+
     #[test]
     fn help_has_try_it_section() {
         let help = build_help_text(&sample_descriptor());
         assert!(help.contains("TRY IT"));
         assert!(help.contains("sunat rhe consulta-emisor"));
         assert!(help.contains("sunat ficha-ruc --json"));
+    }
+
+    #[test]
+    fn help_marks_authed_command_and_leaves_public_unmarked() {
+        let help = build_help_text(&descriptor_with_mixed_auth());
+        // The authed command carries the lock glyph and the login hint.
+        assert!(
+            help.contains("\u{1f512} needs: surfacer auth login sunat"),
+            "authed command should show the lock hint:\n{help}"
+        );
+        // Exactly one command is authed, so exactly one hint appears.
+        assert_eq!(
+            help.matches("needs: surfacer auth login sunat").count(),
+            1,
+            "only the authed command should be marked:\n{help}"
+        );
+    }
+
+    #[test]
+    fn help_has_no_auth_marker_for_fully_public_descriptor() {
+        let help = build_help_text(&sample_descriptor());
+        assert!(
+            !help.contains("needs: surfacer auth login"),
+            "public descriptor must not show any auth hint:\n{help}"
+        );
+        assert!(!help.contains('\u{1f512}'), "no lock glyph for public commands");
+    }
+
+    #[test]
+    fn help_marks_authed_command_when_colored() {
+        let help = build_help_text_colored(&descriptor_with_mixed_auth());
+        assert!(
+            help.contains("needs: surfacer auth login sunat"),
+            "colored help should still carry the login hint:\n{help}"
+        );
+    }
+
+    #[test]
+    fn help_marks_command_authed_via_surface_default() {
+        // No per-op override; the surface default is OAuth2, so every command
+        // resolves to an authed mode.
+        let mut descriptor = sample_descriptor();
+        if let Some(http) = descriptor.http.as_mut() {
+            http.auth = Some(surfacer_ir::AuthMode::OAuth2(surfacer_ir::OAuth2Auth {
+                grant: surfacer_ir::OAuth2Grant::Password,
+                token_url: "https://api-seguridad.sunat.gob.pe/token".into(),
+                scopes: vec!["sire".into()],
+                token_use: None,
+                credentials: surfacer_ir::SecretRef::Env {
+                    var: "SUNAT_SOL_CREDENTIALS".into(),
+                },
+                ttl: None,
+            }));
+        }
+        let help = build_help_text(&descriptor);
+        assert_eq!(
+            help.matches("needs: surfacer auth login sunat").count(),
+            descriptor.operations.len(),
+            "surface default should mark every command:\n{help}"
+        );
     }
 
     #[test]
