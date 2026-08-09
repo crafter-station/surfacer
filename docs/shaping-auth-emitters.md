@@ -61,17 +61,17 @@ Three of the six (shim, help, openapi) need **no token capture at all**: they ei
 
 ## Slices
 
-**AE-V1: token capture in `auth login`** (resolves AE-SPIKE)
+**AE-V1 [SHIPPED #12]: token capture in `auth login`** (resolves AE-SPIKE)
 - Extend `auth login` to apply the site's `TokenCapture` after the human logs in: read the matching request, pull the token, write `{token, expiresAt, capturedAt}` to the site dir.
 - Port the proven logic from `sunat-cli/plataforma/session.ts` (RequestQueryParam on servletAcceso).
 - Demo: `surfacer auth login sunat` then `cat ~/.surfacer/sites/sunat/token.json` shows a JWT with a real expiry.
 
-**AE-V2: shim assertion + help markers**
+**AE-V2 [SHIPPED #13]: shim assertion + help markers**
 - shim: no codegen change; add a test asserting an authed descriptor still emits a shim that shells to exec (guards the "no auth codegen" claim in the IR doc).
 - help: lock glyph and `needs: surfacer auth login <site>` for any command whose resolved auth is not None.
 - Demo: `surfacer emit help sunat` shows locks on the F616 commands, none on a public lookup.
 
-**AE-V3: openapi securitySchemes**
+**AE-V3 [SHIPPED #14]: openapi securitySchemes**
 - Emit `components.securitySchemes` for None / ApiKey / OAuth2, per-op `security`, and the `x-surfacer-auth` extension + description note for Mode B.
 - Demo: `surfacer emit openapi sunat | ...` validates, SIRE ops carry `oauth2`, F616 ops carry the extension and no `security`.
 
