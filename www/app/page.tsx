@@ -1,12 +1,21 @@
-import { TARGETS } from "@/lib/emit";
+import { emitOpenapi, TARGETS } from "@/lib/emit";
 import { highlight } from "@/lib/highlight";
 import { listExamples } from "@/lib/ir";
 import { Playground } from "./playground";
+import { SpecViewer } from "./spec-viewer";
 
 const REPO = "https://github.com/crafter-station/surfacer";
 
 export default async function Home() {
   const examples = await listExamples();
+
+  // The SUNAT declaraciones example is the one that carries all three auth
+  // states, so its emitted OpenAPI is what the Scalar viewer shows. Emitted from
+  // the same descriptor the playground reads, so it never drifts.
+  const sunatAuth = examples.find(
+    (e) => e.slug === "sunat-declaraciones",
+  )?.descriptor;
+  const sunatSpec = sunatAuth ? emitOpenapi(sunatAuth) : null;
 
   // Shiki runs on the server, so every pane is highlighted at build time and
   // the client only swaps which one is visible.
@@ -112,6 +121,24 @@ export default async function Home() {
           .
         </p>
       </section>
+
+      {sunatSpec ? (
+        <section className="mt-14" id="spec">
+          <h2 className="font-mono text-xs uppercase tracking-widest text-neutral-500">
+            The OpenAPI it emits
+          </h2>
+          <p className="mt-3 text-sm text-neutral-500">
+            The curated SUNAT descriptor emitted as OpenAPI 3.1, shown in
+            Scalar. The three auth states carry through: OAuth2 on SIRE, an{" "}
+            <code className="font-mono text-xs">x-surfacer-auth</code> extension
+            on the browser-only F616 form, and a public padron lookup. Read
+            only, since those endpoints answer to a real browser-captured token.
+          </p>
+          <div className="mt-4 overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-900">
+            <SpecViewer spec={sunatSpec} />
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-14 space-y-4 leading-relaxed text-neutral-600 dark:text-neutral-400">
         <h2 className="font-mono text-xs uppercase tracking-widest text-neutral-500">
