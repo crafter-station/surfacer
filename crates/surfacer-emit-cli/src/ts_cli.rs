@@ -245,10 +245,16 @@ async function acquireOAuth2Token(
     params.client_secret = creds.clientSecret;
   }}
 
+  // Built by hand rather than with URLSearchParams: scriptc has no static
+  // lowering for constructing it from an object (SC1090).
+  const body = Object.entries(params)
+    .map(([k, v]) => `${{encodeURIComponent(k)}}=${{encodeURIComponent(v)}}`)
+    .join("&");
+
   const res = await fetch(auth.tokenUrl, {{
     method: "POST",
     headers: {{ "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }},
-    body: new URLSearchParams(params).toString(),
+    body: body,
   }});
   const text = await res.text();
   if (!(res.status >= 200 && res.status < 300)) {{
