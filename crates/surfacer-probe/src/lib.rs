@@ -5,8 +5,10 @@ pub mod capture;
 pub mod har;
 pub mod overlay;
 pub mod paths;
+pub mod token_capture;
 
 pub use agent_browser::{BrowserProcess, ProbeSession};
 pub use auto_recon::{run_auto_recon, AutoReconResult};
 pub use capture::*;
 pub use overlay::ProbeOverlayEvent;
+pub use token_capture::extract_token;

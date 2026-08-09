@@ -6,6 +6,7 @@ mod commands;
 mod execute;
 mod extract;
 mod shell;
+mod token_cache;
 mod ui;
 
 pub use cli::*;
