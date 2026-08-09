@@ -75,15 +75,15 @@ Three of the six (shim, help, openapi) need **no token capture at all**: they ei
 - Emit `components.securitySchemes` for None / ApiKey / OAuth2, per-op `security`, and the `x-surfacer-auth` extension + description note for Mode B.
 - Demo: `surfacer emit openapi sunat | ...` validates, SIRE ops carry `oauth2`, F616 ops carry the extension and no `security`.
 
-**AE-V4: ts-cli three modes** (needs AE-V1)
+**AE-V4 [SHIPPED #17]: ts-cli three modes** (needs AE-V1)
 - `authForOperation`, `resolveToken` (apiKey / oAuth2 / browserBootstrappedToken reading the AE-V1 file), header attach per `TokenUse`. Write-gate untouched.
 - Demo: emit ts-cli for SUNAT, run a read op, it attaches the captured idCache and returns 200 headless.
 
-**AE-V5: mcp three modes** (needs AE-V1)
+**AE-V5 [SHIPPED #18]: mcp three modes** (needs AE-V1)
 - Same runtime record as ts-cli, adapted to the MCP server shape.
 - Demo: register the emitted MCP server, an F616 read tool returns real data.
 
-**AE-V6: just-bash three modes** (needs AE-V1)
+**AE-V6 [SHIPPED #19]: just-bash three modes** (needs AE-V1)
 - Shell equivalents: `curl -H`, token POST piped through `jq`, file read for Mode B with the reauth hint.
 - Demo: the emitted bash config reads a SUNAT op headless.
 
