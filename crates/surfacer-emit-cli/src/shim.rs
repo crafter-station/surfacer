@@ -165,6 +165,90 @@ mod tests {
         }
     }
 
+    /// A descriptor whose surface default is OAuth2 and whose one operation
+    /// overrides to a browser-bootstrapped token. Both auth modes carry header
+    /// names and token material that MUST NOT leak into the shim.
+    fn authed_descriptor() -> surfacer_ir::SiteDescriptor {
+        let mut descriptor = sample_descriptor();
+        if let Some(http) = descriptor.http.as_mut() {
+            http.auth = Some(surfacer_ir::AuthMode::OAuth2(surfacer_ir::OAuth2Auth {
+                grant: surfacer_ir::OAuth2Grant::Password,
+                token_url: "https://api-seguridad.sunat.gob.pe/token".into(),
+                scopes: vec!["sire".into()],
+                token_use: None,
+                credentials: surfacer_ir::SecretRef::Env {
+                    var: "SUNAT_SOL_CREDENTIALS".into(),
+                },
+                ttl: None,
+            }));
+        }
+        descriptor.operations[0].auth = Some(surfacer_ir::AuthMode::BrowserBootstrappedToken(
+            surfacer_ir::BrowserBootstrappedTokenAuth {
+                acquire: surfacer_ir::BrowserAcquisition {
+                    login_url: "https://e-menu.sunat.gob.pe/cl-ti-itmenu/AutenticaMenuInternet.htm"
+                        .into(),
+                    capture: surfacer_ir::TokenCapture::RequestQueryParam {
+                        url_contains: "servletAcceso".into(),
+                        param: "idCache".into(),
+                    },
+                    session_ref: Some("sunat".into()),
+                },
+                use_: surfacer_ir::TokenUse {
+                    location: surfacer_ir::CredentialLocation::Header,
+                    name: "IdCache".into(),
+                    value_prefix: None,
+                },
+                ttl: surfacer_ir::TokenTtl {
+                    seconds: 3600,
+                    on_expiry: surfacer_ir::RenewalStrategy::PromptReauth,
+                },
+            },
+        ));
+        descriptor
+    }
+
+    /// Guard for the IR doc's "shim needs no auth codegen" claim: `surfacer
+    /// exec` resolves auth at runtime, so an authed descriptor must emit the
+    /// exact same shim shape as a public one, shelling to `exec` and baking no
+    /// auth material. If someone adds auth codegen to the shim, this fails.
+    #[test]
+    fn authed_shim_shells_to_exec_and_bakes_no_auth() {
+        let descriptor = authed_descriptor();
+        let site = descriptor.meta.site_name.clone();
+        let source = shim_main_rs(&site, "surfacer");
+
+        // Still a plain exec shim.
+        assert!(source.contains(".arg(\"exec\")"), "shim must shell to exec: {source}");
+        assert!(source.contains(&format!("{site:?}")), "shim must pass the site name");
+
+        // No auth material from the descriptor leaked into the generated source.
+        for needle in [
+            "IdCache",
+            "idCache",
+            "Authorization",
+            "Bearer",
+            "servletAcceso",
+            "token",
+            "oauth",
+            "oAuth2",
+            "SUNAT_SOL_CREDENTIALS",
+            "browserBootstrappedToken",
+        ] {
+            assert!(
+                !source.contains(needle),
+                "shim baked auth material `{needle}`, but exec owns runtime auth:\n{source}"
+            );
+        }
+
+        // An authed descriptor and a public one emit byte-identical shims,
+        // because the shim never reads auth.
+        let public_source = shim_main_rs(&site, "surfacer");
+        assert_eq!(
+            source, public_source,
+            "auth must not change the emitted shim source"
+        );
+    }
+
     #[test]
     fn test_shim_compilation() {
         if Command::new("rustc").arg("--version").status().is_err() {
