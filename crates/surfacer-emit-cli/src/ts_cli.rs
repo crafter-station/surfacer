@@ -1,3 +1,4 @@
+use crate::escaping::escape_ts;
 use surfacer_ir::{
     resolve_auth, AuthMode, CredentialLocation, OAuth2Grant, OperationKind, OperationTransport,
     ParamDescriptor, RenewalStrategy, SecretRef, SiteDescriptor, TokenUse,
@@ -602,13 +603,6 @@ fn quote(value: &str) -> String {
     format!("\"{value}\"")
 }
 
-fn escape_ts(input: &str) -> String {
-    input
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', " ")
-        .replace('\r', " ")
-}
 
 fn base_url(source_url: &str) -> String {
     url::Url::parse(source_url)
