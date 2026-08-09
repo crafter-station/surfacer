@@ -1,0 +1,7 @@
+# Only www/ and examples/ matter to the site; Rust build output and recon
+# captures push the upload past Vercel's file limit.
+target/
+emit/
+surfacer-recon-*/
+www/node_modules/
+www/.next/
