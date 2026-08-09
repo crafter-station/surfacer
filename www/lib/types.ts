@@ -7,6 +7,30 @@
 
 export type OperationKind = "read" | "write" | "other";
 
+/**
+ * Auth modes, mirroring `crates/surfacer-ir/src/auth.rs`. Only the fields the
+ * OpenAPI emitter reads are typed here; the rest ride through as unknown.
+ */
+export type AuthMode =
+  | { kind: "none" }
+  | {
+      kind: "apiKey";
+      location: "header" | "query";
+      name: string;
+      valuePrefix?: string;
+    }
+  | {
+      kind: "oAuth2";
+      grant: "password" | "clientCredentials" | "authorizationCode";
+      tokenUrl: string;
+      scopes?: string[];
+    }
+  | {
+      kind: "browserBootstrappedToken";
+      acquire: { loginUrl: string };
+      use: { location: "header" | "query"; name: string };
+    };
+
 export interface ParamDescriptor {
   name: string;
   varies?: boolean;
@@ -29,6 +53,7 @@ export interface OperationDescriptor {
   description: string;
   operationKind: OperationKind;
   transport: { kind: string; endpointIndex?: number; actionIndex?: number };
+  auth?: AuthMode;
 }
 
 export interface SiteDescriptor {
@@ -45,8 +70,19 @@ export interface SiteDescriptor {
     probeDurationSec: number;
   };
   operations: OperationDescriptor[];
-  http?: { endpoints: HttpEndpoint[] };
+  http?: { endpoints: HttpEndpoint[]; auth?: AuthMode };
   ax?: unknown;
+}
+
+/**
+ * Effective auth for an operation: its own override, else the surface default.
+ * Mirrors `resolve_auth` in the Rust IR.
+ */
+export function resolveAuth(
+  descriptor: SiteDescriptor,
+  op: OperationDescriptor,
+): AuthMode | undefined {
+  return op.auth ?? descriptor.http?.auth;
 }
 
 export interface Example {

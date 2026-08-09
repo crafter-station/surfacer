@@ -1,7 +1,9 @@
 import {
+  type AuthMode,
   endpointFor,
   type OperationDescriptor,
   paramsFor,
+  resolveAuth,
   type SiteDescriptor,
 } from "./types";
 
@@ -150,6 +152,29 @@ ${tools}
  * artifacts; these exist so the shape is visible without installing anything.
  */
 export function emitOpenapi(descriptor: SiteDescriptor): string {
+  const schemes: Record<string, unknown> = {};
+  const schemeNameFor = (auth: AuthMode): string | undefined => {
+    if (auth.kind === "oAuth2") {
+      const name = `oauth2_${auth.grant}`;
+      schemes[name] = {
+        type: "oauth2",
+        flows: {
+          [auth.grant]: {
+            tokenUrl: auth.tokenUrl,
+            scopes: Object.fromEntries((auth.scopes ?? []).map((s) => [s, s])),
+          },
+        },
+      };
+      return name;
+    }
+    if (auth.kind === "apiKey") {
+      const name = `apiKey_${auth.location}_${auth.name.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      schemes[name] = { type: "apiKey", in: auth.location, name: auth.name };
+      return name;
+    }
+    return undefined;
+  };
+
   const paths: Record<string, unknown> = {};
   for (const op of descriptor.operations) {
     const endpoint = endpointFor(descriptor, op);
@@ -162,17 +187,41 @@ export function emitOpenapi(descriptor: SiteDescriptor): string {
         ? { type: "string", example: p.example }
         : { type: "string" },
     }));
+
+    const auth = resolveAuth(descriptor, op);
+    let security: unknown;
+    let extension: Record<string, unknown> = {};
+    let authNote = "";
+    if (auth) {
+      if (auth.kind === "none") {
+        security = [];
+      } else if (auth.kind === "browserBootstrappedToken") {
+        // OpenAPI has no scheme for "acquire via browser once, replay headless".
+        // Declare it openly rather than fake an apiKey.
+        extension = { "x-surfacer-auth": auth };
+        authNote = " Needs: surfacer auth login.";
+      } else {
+        const name = schemeNameFor(auth);
+        if (name) security = [{ [name]: [] }];
+      }
+    }
+
     paths[path] = {
       get: {
         operationId: op.commandPath.join("_"),
         summary: op.summary,
+        description: op.description + authNote,
         tags: [op.commandPath[0] ?? "default"],
         ...(params.length > 0 ? { parameters: params } : {}),
+        ...(security !== undefined ? { security } : {}),
+        ...extension,
         responses: { default: { description: "Observed during recon" } },
         "x-surfacer-operation-kind": op.operationKind,
       },
     };
   }
+
+  const hasSchemes = Object.keys(schemes).length > 0;
   return JSON.stringify(
     {
       openapi: "3.1.0",
@@ -181,6 +230,7 @@ export function emitOpenapi(descriptor: SiteDescriptor): string {
         version: descriptor.meta.irVersion,
       },
       servers: [{ url: new URL(descriptor.meta.sourceUrl).origin }],
+      ...(hasSchemes ? { components: { securitySchemes: schemes } } : {}),
       paths,
     },
     null,
