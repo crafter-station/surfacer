@@ -1,0 +1,566 @@
+{
+  "meta": {
+    "siteName": "news-ycombinator-com",
+    "displayName": "Hacker News",
+    "sourceUrl": "https://news.ycombinator.com/formatdoc",
+    "irVersion": "0.1.0"
+  },
+  "provenance": {
+    "generatedAt": "1776220615",
+    "technique": "http",
+    "classifierBucket": "HttpOnly",
+    "probeDurationSec": 0
+  },
+  "operations": [
+    {
+      "commandPath": [
+        "ask"
+      ],
+      "summary": "ask",
+      "description": "ask",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 0
+      }
+    },
+    {
+      "commandPath": [
+        "formatdoc"
+      ],
+      "summary": "formatdoc",
+      "description": "formatdoc",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 1
+      }
+    },
+    {
+      "commandPath": [
+        "front"
+      ],
+      "summary": "front",
+      "description": "front",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 2
+      },
+      "extractor": {
+        "type": "list",
+        "itemPattern": {
+          "strategy": "css",
+          "cssSelector": "tr:has(> td > span > a[href^=\"https://\"])",
+          "axRole": null,
+          "axNamePattern": null
+        },
+        "fields": [
+          {
+            "name": "rank",
+            "fieldType": "number",
+            "source": {
+              "from": "css",
+              "selector": "td span:first-child",
+              "attribute": null
+            }
+          },
+          {
+            "name": "title",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child span a",
+              "attribute": null
+            }
+          },
+          {
+            "name": "url",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child span a",
+              "attribute": "href"
+            }
+          },
+          {
+            "name": "domain",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child span a[href*='from?site']",
+              "attribute": null
+            }
+          }
+        ],
+        "pagination": null
+      }
+    },
+    {
+      "commandPath": [
+        "index-html"
+      ],
+      "summary": "index html",
+      "description": "index html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 3
+      }
+    },
+    {
+      "commandPath": [
+        "jobs"
+      ],
+      "summary": "jobs",
+      "description": "jobs",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 4
+      },
+      "extractor": {
+        "type": "list",
+        "itemPattern": {
+          "strategy": "css",
+          "cssSelector": "tr:has(> td > span > a[href^=\"https://\"])",
+          "axRole": null,
+          "axNamePattern": null
+        },
+        "fields": [
+          {
+            "name": "position",
+            "fieldType": "number",
+            "source": {
+              "from": "css",
+              "selector": "td:first-child span",
+              "attribute": null
+            }
+          },
+          {
+            "name": "title",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child span a",
+              "attribute": null
+            }
+          },
+          {
+            "name": "url",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child span a",
+              "attribute": "href"
+            }
+          },
+          {
+            "name": "domain",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child span a:last-of-type span",
+              "attribute": null
+            }
+          }
+        ],
+        "pagination": null
+      }
+    },
+    {
+      "commandPath": [
+        "newcomments"
+      ],
+      "summary": "newcomments",
+      "description": "newcomments",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 5
+      }
+    },
+    {
+      "commandPath": [
+        "newest"
+      ],
+      "summary": "newest",
+      "description": "newest",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 6
+      },
+      "extractor": {
+        "type": "list",
+        "itemPattern": {
+          "strategy": "css",
+          "cssSelector": "tr:has(> td > span > a[href^=\"https://\"])",
+          "axRole": null,
+          "axNamePattern": null
+        },
+        "fields": [
+          {
+            "name": "title",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child > span > a",
+              "attribute": null
+            }
+          },
+          {
+            "name": "url",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child > span > a",
+              "attribute": "href"
+            }
+          },
+          {
+            "name": "domain",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child > span > span > a > span",
+              "attribute": null
+            }
+          },
+          {
+            "name": "points",
+            "fieldType": "number",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child > span > span:first-child",
+              "attribute": null
+            }
+          },
+          {
+            "name": "author",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child > span > a[href*='user?id=']",
+              "attribute": null
+            }
+          },
+          {
+            "name": "date",
+            "fieldType": "dateTime",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child > span > span[title]",
+              "attribute": "title"
+            }
+          },
+          {
+            "name": "itemId",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child > span > a[href*='item?id=']",
+              "attribute": "href"
+            }
+          }
+        ],
+        "pagination": null
+      }
+    },
+    {
+      "commandPath": [
+        "news"
+      ],
+      "summary": "news",
+      "description": "news",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 7
+      },
+      "extractor": {
+        "type": "list",
+        "itemPattern": {
+          "strategy": "css",
+          "cssSelector": "tr:has(> td > span > a[href^=\"https://\"])",
+          "axRole": null,
+          "axNamePattern": null
+        },
+        "fields": [
+          {
+            "name": "rank",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:first-child span",
+              "attribute": null
+            }
+          },
+          {
+            "name": "title",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child a:first-of-type",
+              "attribute": null
+            }
+          },
+          {
+            "name": "url",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child a:first-of-type",
+              "attribute": "href"
+            }
+          },
+          {
+            "name": "domain",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:last-child span a span",
+              "attribute": null
+            }
+          }
+        ],
+        "pagination": null
+      }
+    },
+    {
+      "commandPath": [
+        "show"
+      ],
+      "summary": "show",
+      "description": "show",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 8
+      },
+      "extractor": {
+        "type": "list",
+        "itemPattern": {
+          "strategy": "css",
+          "cssSelector": "tr:has(> td > span > a[href^=\"https://\"])",
+          "axRole": null,
+          "axNamePattern": null
+        },
+        "fields": [
+          {
+            "name": "rank",
+            "fieldType": "number",
+            "source": {
+              "from": "css",
+              "selector": "td span:first-child",
+              "attribute": null
+            }
+          },
+          {
+            "name": "title",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:nth-child(3) a:first-of-type",
+              "attribute": null
+            }
+          },
+          {
+            "name": "url",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "td:nth-child(3) a:first-of-type",
+              "attribute": "href"
+            }
+          },
+          {
+            "name": "domain",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "td:nth-child(3) span a span",
+              "attribute": null
+            }
+          },
+          {
+            "name": "domainUrl",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "td:nth-child(3) span a",
+              "attribute": "href"
+            }
+          }
+        ],
+        "pagination": null
+      }
+    },
+    {
+      "commandPath": [
+        "threads"
+      ],
+      "summary": "threads",
+      "description": "threads",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 9
+      }
+    },
+    {
+      "commandPath": [
+        "user"
+      ],
+      "summary": "user",
+      "description": "user",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 10
+      }
+    }
+  ],
+  "http": {
+    "endpoints": [
+      {
+        "namespace": [
+          "ask"
+        ],
+        "method": "GET",
+        "path": "/ask",
+        "description": "ask",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "formatdoc"
+        ],
+        "method": "GET",
+        "path": "/formatdoc",
+        "description": "formatdoc",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "front"
+        ],
+        "method": "GET",
+        "path": "/front",
+        "description": "front",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "index-html"
+        ],
+        "method": "GET",
+        "path": "/index.html",
+        "description": "index html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "jobs"
+        ],
+        "method": "GET",
+        "path": "/jobs",
+        "description": "jobs",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "newcomments"
+        ],
+        "method": "GET",
+        "path": "/newcomments",
+        "description": "newcomments",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "newest"
+        ],
+        "method": "GET",
+        "path": "/newest",
+        "description": "newest",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "news"
+        ],
+        "method": "GET",
+        "path": "/news",
+        "description": "news",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "show"
+        ],
+        "method": "GET",
+        "path": "/show",
+        "description": "show",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8"
+      },
+      {
+        "namespace": [
+          "threads"
+        ],
+        "method": "GET",
+        "path": "/threads",
+        "description": "threads",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8",
+        "params": [
+          {
+            "name": "id",
+            "varies": false,
+            "example": "Hunter17",
+            "observations": 1
+          }
+        ]
+      },
+      {
+        "namespace": [
+          "user"
+        ],
+        "method": "GET",
+        "path": "/user",
+        "description": "user",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html; charset=utf-8",
+        "params": [
+          {
+            "name": "id",
+            "varies": false,
+            "example": "Hunter17",
+            "observations": 1
+          }
+        ]
+      }
+    ]
+  },
+  "ax": null
+}

@@ -1,0 +1,467 @@
+{
+  "meta": {
+    "siteName": "www-sunat-gob-pe",
+    "displayName": "SUNAT",
+    "sourceUrl": "https://www.sunat.gob.pe/operatividadaduanera/novedades/aduanas/comunicados/2013/comunica2013.htm",
+    "irVersion": "0.1.0"
+  },
+  "provenance": {
+    "generatedAt": "1776225454",
+    "technique": "http",
+    "classifierBucket": "HttpOnly",
+    "probeDurationSec": 0
+  },
+  "operations": [
+    {
+      "commandPath": [
+        "index-html"
+      ],
+      "summary": "index html",
+      "description": "index html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 0
+      },
+      "extractor": {
+        "type": "list",
+        "itemPattern": {
+          "strategy": "css",
+          "cssSelector": "div:has(> a)",
+          "axRole": null,
+          "axNamePattern": null
+        },
+        "fields": [
+          {
+            "name": "title",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "a",
+              "attribute": null
+            }
+          },
+          {
+            "name": "url",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "a",
+              "attribute": "href"
+            }
+          },
+          {
+            "name": "description",
+            "fieldType": "text",
+            "source": {
+              "from": "css",
+              "selector": "p",
+              "attribute": null
+            }
+          },
+          {
+            "name": "icon",
+            "fieldType": "url",
+            "source": {
+              "from": "css",
+              "selector": "img",
+              "attribute": "src"
+            }
+          }
+        ],
+        "pagination": null
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-2019-html"
+      ],
+      "summary": "mensajes mensajes sunat ad 2019 html",
+      "description": "mensajes mensajes sunat ad 2019 html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 1
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-2020-html"
+      ],
+      "summary": "mensajes mensajes sunat ad 2020 html",
+      "description": "mensajes mensajes sunat ad 2020 html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 2
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-2021-html"
+      ],
+      "summary": "mensajes mensajes sunat ad 2021 html",
+      "description": "mensajes mensajes sunat ad 2021 html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 3
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-2022-html"
+      ],
+      "summary": "mensajes mensajes sunat ad 2022 html",
+      "description": "mensajes mensajes sunat ad 2022 html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 4
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-2023-html"
+      ],
+      "summary": "mensajes mensajes sunat ad 2023 html",
+      "description": "mensajes mensajes sunat ad 2023 html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 5
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-2024-html"
+      ],
+      "summary": "mensajes mensajes sunat ad 2024 html",
+      "description": "mensajes mensajes sunat ad 2024 html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 6
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-2025-html"
+      ],
+      "summary": "mensajes mensajes sunat ad 2025 html",
+      "description": "mensajes mensajes sunat ad 2025 html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 7
+      }
+    },
+    {
+      "commandPath": [
+        "mensajes",
+        "mensajes-sunat-ad-html"
+      ],
+      "summary": "mensajes mensajes sunat ad html",
+      "description": "mensajes mensajes sunat ad html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 8
+      }
+    },
+    {
+      "commandPath": [
+        "operatividadaduanera",
+        "novedades"
+      ],
+      "summary": "operatividadaduanera novedades aduanas comunicados 2013 comunica2013 htm",
+      "description": "operatividadaduanera novedades aduanas comunicados 2013 comunica2013 htm",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 9
+      }
+    },
+    {
+      "commandPath": [
+        "operatividadaduanera",
+        "novedades"
+      ],
+      "summary": "operatividadaduanera novedades aduanas comunicados 2014 comunica2014 htm",
+      "description": "operatividadaduanera novedades aduanas comunicados 2014 comunica2014 htm",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 10
+      }
+    },
+    {
+      "commandPath": [
+        "operatividadaduanera",
+        "novedades"
+      ],
+      "summary": "operatividadaduanera novedades aduanas comunicados 2015 comunica2015 htm",
+      "description": "operatividadaduanera novedades aduanas comunicados 2015 comunica2015 htm",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 11
+      }
+    },
+    {
+      "commandPath": [
+        "operatividadaduanera",
+        "novedades"
+      ],
+      "summary": "operatividadaduanera novedades aduanas comunicados 2016 comunica2016 htm",
+      "description": "operatividadaduanera novedades aduanas comunicados 2016 comunica2016 htm",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 12
+      }
+    },
+    {
+      "commandPath": [
+        "operatividadaduanera",
+        "novedades"
+      ],
+      "summary": "operatividadaduanera novedades aduanas comunicados 2017 comunica2017 htm",
+      "description": "operatividadaduanera novedades aduanas comunicados 2017 comunica2017 htm",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 13
+      }
+    },
+    {
+      "commandPath": [
+        "operatividadaduanera",
+        "novedades"
+      ],
+      "summary": "operatividadaduanera novedades aduanas comunicados 2018 comunica2018 htm",
+      "description": "operatividadaduanera novedades aduanas comunicados 2018 comunica2018 htm",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 14
+      }
+    },
+    {
+      "commandPath": [
+        "operatividadaduanera",
+        "novedades"
+      ],
+      "summary": "operatividadaduanera novedades aduanas comunicados anho comunica html",
+      "description": "operatividadaduanera novedades aduanas comunicados anho comunica html",
+      "operationKind": "read",
+      "transport": {
+        "kind": "http",
+        "endpointIndex": 15
+      }
+    }
+  ],
+  "http": {
+    "endpoints": [
+      {
+        "namespace": [
+          "index-html"
+        ],
+        "method": "GET",
+        "path": "/index.html",
+        "description": "index html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-2019-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD-2019.html",
+        "description": "mensajes mensajes sunat ad 2019 html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-2020-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD-2020.html",
+        "description": "mensajes mensajes sunat ad 2020 html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-2021-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD-2021.html",
+        "description": "mensajes mensajes sunat ad 2021 html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-2022-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD-2022.html",
+        "description": "mensajes mensajes sunat ad 2022 html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-2023-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD-2023.html",
+        "description": "mensajes mensajes sunat ad 2023 html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-2024-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD-2024.html",
+        "description": "mensajes mensajes sunat ad 2024 html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-2025-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD-2025.html",
+        "description": "mensajes mensajes sunat ad 2025 html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "mensajes",
+          "mensajes-sunat-ad-html"
+        ],
+        "method": "GET",
+        "path": "/mensajes/mensajes-SUNAT-AD.html",
+        "description": "mensajes mensajes sunat ad html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "operatividadaduanera",
+          "novedades"
+        ],
+        "method": "GET",
+        "path": "/operatividadaduanera/novedades/aduanas/comunicados/2013/comunica2013.htm",
+        "description": "operatividadaduanera novedades aduanas comunicados 2013 comunica2013 htm",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "operatividadaduanera",
+          "novedades"
+        ],
+        "method": "GET",
+        "path": "/operatividadaduanera/novedades/aduanas/comunicados/2014/comunica2014.htm",
+        "description": "operatividadaduanera novedades aduanas comunicados 2014 comunica2014 htm",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "operatividadaduanera",
+          "novedades"
+        ],
+        "method": "GET",
+        "path": "/operatividadaduanera/novedades/aduanas/comunicados/2015/comunica2015.htm",
+        "description": "operatividadaduanera novedades aduanas comunicados 2015 comunica2015 htm",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "operatividadaduanera",
+          "novedades"
+        ],
+        "method": "GET",
+        "path": "/operatividadaduanera/novedades/aduanas/comunicados/2016/comunica2016.htm",
+        "description": "operatividadaduanera novedades aduanas comunicados 2016 comunica2016 htm",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "operatividadaduanera",
+          "novedades"
+        ],
+        "method": "GET",
+        "path": "/operatividadaduanera/novedades/aduanas/comunicados/2017/comunica2017.htm",
+        "description": "operatividadaduanera novedades aduanas comunicados 2017 comunica2017 htm",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "operatividadaduanera",
+          "novedades"
+        ],
+        "method": "GET",
+        "path": "/operatividadaduanera/novedades/aduanas/comunicados/2018/comunica2018.htm",
+        "description": "operatividadaduanera novedades aduanas comunicados 2018 comunica2018 htm",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      },
+      {
+        "namespace": [
+          "operatividadaduanera",
+          "novedades"
+        ],
+        "method": "GET",
+        "path": "/operatividadaduanera/novedades/aduanas/comunicados/anho-comunica.html",
+        "description": "operatividadaduanera novedades aduanas comunicados anho comunica html",
+        "operationKind": "read",
+        "sampleRequestContentType": null,
+        "sampleResponseContentType": "text/html"
+      }
+    ]
+  },
+  "ax": null
+}
