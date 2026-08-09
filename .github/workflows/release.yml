@@ -22,7 +22,9 @@ jobs:
         include:
           - os: macos-14
             target: aarch64-apple-darwin
-          - os: macos-13
+          # Cross-compiled from the arm64 runner rather than macos-13, which is
+          # deprecated and sat unassigned for 25 minutes on the first release.
+          - os: macos-14
             target: x86_64-apple-darwin
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
@@ -66,6 +68,8 @@ jobs:
           $SUM "surfacer-${{ matrix.target }}.tar.gz" \
             > "surfacer-${{ matrix.target }}.tar.gz.sha256"
 
+      # A cross-compiled binary cannot run on the host that built it, so this
+      # step covers only the targets whose runner matches.
       - name: Verify the archive runs
         if: matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
