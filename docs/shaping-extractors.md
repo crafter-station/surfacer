@@ -1,16 +1,16 @@
 ---
 type: shaping
-project: webctl
+project: surfacer
 feature: extractors
 created: 2026-04-14
 status: shaping-active
-depends_on: webctl-ir SiteDescriptor, webctl recon --auto, webctl exec
+depends_on: surfacer-ir SiteDescriptor, surfacer recon --auto, surfacer exec
 ---
 
 # Extractors — Shaping
 
-> How webctl turns raw HTML responses into structured, navigable data.
-> Without extractors, `webctl exec` dumps text. With extractors,
+> How surfacer turns raw HTML responses into structured, navigable data.
+> Without extractors, `surfacer exec` dumps text. With extractors,
 > it returns items you can pipe, filter, and drill into.
 
 ## Problem
@@ -26,7 +26,7 @@ Hacker News new | past | comments | ask | show | jobs | submit login
 
 Raw text. No structure. No links. No way to say "open story #1" or
 "show me stories with >500 points" or pipe to jq. The output is
-functionally equivalent to curl — webctl adds no value over reading
+functionally equivalent to curl — surfacer adds no value over reading
 the HTML directly.
 
 ## Outcome
@@ -228,7 +228,7 @@ during recon. Zero tokens at runtime.
 ## Shape: Extraction Pipeline
 
 ```
-webctl exec <site> <command>
+surfacer exec <site> <command>
   ↓
 load IR → find operation → check extractor
   ↓
@@ -264,7 +264,7 @@ These don't need their own IR operations — they're derived from the extractor 
 
 ## Recon Integration
 
-During `webctl recon --auto`:
+During `surfacer recon --auto`:
 
 ```
 for each endpoint discovered:
@@ -286,12 +286,12 @@ exec (consumer pays never). Consistent with the thesis.
 ## Implementation plan
 
 ### Phase 1 — IR schema + types (small)
-- Add `Extractor`, `ListExtractor`, `DetailExtractor`, `FieldDef`, etc. to `webctl-ir`
+- Add `Extractor`, `ListExtractor`, `DetailExtractor`, `FieldDef`, etc. to `surfacer-ir`
 - Add `extractor: Option<Extractor>` to `OperationDescriptor`
 - Serde derives, tests for roundtrip
 
 ### Phase 2 — Runtime extraction (medium)
-- Add HTML DOM parser to `webctl-app` (probably `scraper` crate for CSS selectors)
+- Add HTML DOM parser to `surfacer-app` (probably `scraper` crate for CSS selectors)
 - Implement `extract_items(html: &str, extractor: &ListExtractor) -> Vec<ExtractedItem>`
 - Update `exec_with_ir` to use extractor when present
 - Human output renderer for extracted items (indexed list with fields)
@@ -299,7 +299,7 @@ exec (consumer pays never). Consistent with the thesis.
 - `open <index>` command to open item URL in browser
 
 ### Phase 3 — Recon auto-extraction (medium-large)
-- Add DOM pattern detection to `webctl-probe` or `webctl-classifier`
+- Add DOM pattern detection to `surfacer-probe` or `surfacer-classifier`
 - Heuristics: repeating elements, table rows, list items
 - LLM field naming call via `claude -p` during recon
 - Wire into auto-recon loop: after fetching each page, run extraction detection
@@ -309,7 +309,7 @@ exec (consumer pays never). Consistent with the thesis.
 - Pagination support
 - Detail pages (single-item extraction)
 - Maintainer editing of extractors post-recon
-- Extractor validation in `webctl lint`
+- Extractor validation in `surfacer lint`
 
 ## Dependencies
 
@@ -338,7 +338,7 @@ Options:
 - (b) AX tree pattern detection via agent-browser snapshot (works for all sites, more complex)
 - (c) CSS selectors first, AX tree fallback (covers both cases)
 
-Recommendation: **(a) for v1**, upgrade to (c) later. The sites webctl targets
+Recommendation: **(a) for v1**, upgrade to (c) later. The sites surfacer targets
 (government portals, legacy banking, SaaS without APIs) are overwhelmingly
 server-rendered HTML. JS SPAs are the OpenAI dashboard case which is a
 different archetype and can wait for v2.

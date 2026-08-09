@@ -1,0 +1,14 @@
+[package]
+name = "surfacer-install"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+camino.workspace = true
+directories.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+surfacer-emit-cli = { path = "../surfacer-emit-cli" }
+surfacer-ir = { path = "../surfacer-ir" }

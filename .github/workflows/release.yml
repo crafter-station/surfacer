@@ -38,19 +38,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p webctl
+        run: cargo build --release --target ${{ matrix.target }} -p surfacer
 
       - name: Package
         run: |
           mkdir -p dist
-          tar -czf "dist/webctl-${{ matrix.target }}.tar.gz" \
-            -C "target/${{ matrix.target }}/release" webctl
-          shasum -a 256 "dist/webctl-${{ matrix.target }}.tar.gz" \
-            > "dist/webctl-${{ matrix.target }}.tar.gz.sha256"
+          tar -czf "dist/surfacer-${{ matrix.target }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" surfacer
+          shasum -a 256 "dist/surfacer-${{ matrix.target }}.tar.gz" \
+            > "dist/surfacer-${{ matrix.target }}.tar.gz.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: webctl-${{ matrix.target }}
+          name: surfacer-${{ matrix.target }}
           path: dist/*
 
   release:

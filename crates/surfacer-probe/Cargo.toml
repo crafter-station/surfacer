@@ -1,0 +1,16 @@
+[package]
+name = "surfacer-probe"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+camino.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+regex.workspace = true
+scraper.workspace = true
+url.workspace = true
+surfacer-ir = { path = "../surfacer-ir" }

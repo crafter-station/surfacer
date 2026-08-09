@@ -1,0 +1,16 @@
+[package]
+name = "surfacer-emit-cli"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+camino.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+owo-colors.workspace = true
+url.workspace = true
+surfacer-ir = { path = "../surfacer-ir" }
+
+[dev-dependencies]
+tempfile.workspace = true

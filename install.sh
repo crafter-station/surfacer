@@ -1,15 +1,15 @@
 #!/bin/sh
-# Install webctl.
+# Install surfacer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/crafter-station/webctl/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/crafter-station/surfacer/main/install.sh | sh
 #
-# Set WEBCTL_VERSION to pin a release, WEBCTL_INSTALL_DIR to choose where the
+# Set SURFACER_VERSION to pin a release, SURFACER_INSTALL_DIR to choose where the
 # binary lands.
 
 set -eu
 
-REPO="crafter-station/webctl"
-INSTALL_DIR="${WEBCTL_INSTALL_DIR:-$HOME/.local/bin}"
+REPO="crafter-station/surfacer"
+INSTALL_DIR="${SURFACER_INSTALL_DIR:-$HOME/.local/bin}"
 
 err() {
 	echo "install: $1" >&2
@@ -44,20 +44,20 @@ Linux/x86_64) target="x86_64-unknown-linux-gnu" ;;
 *) err "unsupported platform: $os $arch" ;;
 esac
 
-version="${WEBCTL_VERSION:-}"
+version="${SURFACER_VERSION:-}"
 if [ -z "$version" ]; then
 	version="$(fetch "https://api.github.com/repos/$REPO/releases/latest" |
 		sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)"
-	[ -n "$version" ] || err "could not resolve the latest release; set WEBCTL_VERSION"
+	[ -n "$version" ] || err "could not resolve the latest release; set SURFACER_VERSION"
 fi
 
-archive="webctl-$target.tar.gz"
+archive="surfacer-$target.tar.gz"
 url="https://github.com/$REPO/releases/download/$version/$archive"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "downloading webctl $version ($target)"
+echo "downloading surfacer $version ($target)"
 fetch_to "$url" "$tmp/$archive" || err "download failed: $url"
 
 # Verify when the checksum is published and a checker is available; a missing
@@ -76,10 +76,10 @@ fi
 
 tar -xzf "$tmp/$archive" -C "$tmp"
 mkdir -p "$INSTALL_DIR"
-mv "$tmp/webctl" "$INSTALL_DIR/webctl"
-chmod +x "$INSTALL_DIR/webctl"
+mv "$tmp/surfacer" "$INSTALL_DIR/surfacer"
+chmod +x "$INSTALL_DIR/surfacer"
 
-echo "installed: $INSTALL_DIR/webctl"
+echo "installed: $INSTALL_DIR/surfacer"
 
 case ":$PATH:" in
 *":$INSTALL_DIR:"*) ;;
