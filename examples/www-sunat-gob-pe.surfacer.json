@@ -14,10 +14,10 @@
   "operations": [
     {
       "commandPath": [
-        "index-html"
+        "inicio"
       ],
-      "summary": "index html",
-      "description": "index html",
+      "summary": "Pagina de inicio",
+      "description": "Pagina de inicio del portal de SUNAT",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -75,10 +75,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-2019-html"
+        "2019"
       ],
-      "summary": "mensajes mensajes sunat ad 2019 html",
-      "description": "mensajes mensajes sunat ad 2019 html",
+      "summary": "Mensajes SUNAT 2019",
+      "description": "Mensajes publicados por SUNAT durante 2019",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -88,10 +88,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-2020-html"
+        "2020"
       ],
-      "summary": "mensajes mensajes sunat ad 2020 html",
-      "description": "mensajes mensajes sunat ad 2020 html",
+      "summary": "Mensajes SUNAT 2020",
+      "description": "Mensajes publicados por SUNAT durante 2020",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -101,10 +101,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-2021-html"
+        "2021"
       ],
-      "summary": "mensajes mensajes sunat ad 2021 html",
-      "description": "mensajes mensajes sunat ad 2021 html",
+      "summary": "Mensajes SUNAT 2021",
+      "description": "Mensajes publicados por SUNAT durante 2021",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -114,10 +114,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-2022-html"
+        "2022"
       ],
-      "summary": "mensajes mensajes sunat ad 2022 html",
-      "description": "mensajes mensajes sunat ad 2022 html",
+      "summary": "Mensajes SUNAT 2022",
+      "description": "Mensajes publicados por SUNAT durante 2022",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -127,10 +127,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-2023-html"
+        "2023"
       ],
-      "summary": "mensajes mensajes sunat ad 2023 html",
-      "description": "mensajes mensajes sunat ad 2023 html",
+      "summary": "Mensajes SUNAT 2023",
+      "description": "Mensajes publicados por SUNAT durante 2023",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -140,10 +140,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-2024-html"
+        "2024"
       ],
-      "summary": "mensajes mensajes sunat ad 2024 html",
-      "description": "mensajes mensajes sunat ad 2024 html",
+      "summary": "Mensajes SUNAT 2024",
+      "description": "Mensajes publicados por SUNAT durante 2024",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -153,10 +153,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-2025-html"
+        "2025"
       ],
-      "summary": "mensajes mensajes sunat ad 2025 html",
-      "description": "mensajes mensajes sunat ad 2025 html",
+      "summary": "Mensajes SUNAT 2025",
+      "description": "Mensajes publicados por SUNAT durante 2025",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -166,10 +166,10 @@
     {
       "commandPath": [
         "mensajes",
-        "mensajes-sunat-ad-html"
+        "index"
       ],
-      "summary": "mensajes mensajes sunat ad html",
-      "description": "mensajes mensajes sunat ad html",
+      "summary": "Indice de mensajes SUNAT",
+      "description": "Indice por anho de los mensajes de SUNAT",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -178,11 +178,12 @@
     },
     {
       "commandPath": [
-        "operatividadaduanera",
-        "novedades"
+        "aduanas",
+        "comunicados",
+        "2013"
       ],
-      "summary": "operatividadaduanera novedades aduanas comunicados 2013 comunica2013 htm",
-      "description": "operatividadaduanera novedades aduanas comunicados 2013 comunica2013 htm",
+      "summary": "Comunicados de aduanas 2013",
+      "description": "Comunicados publicados por aduanas durante 2013",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -191,11 +192,12 @@
     },
     {
       "commandPath": [
-        "operatividadaduanera",
-        "novedades"
+        "aduanas",
+        "comunicados",
+        "2014"
       ],
-      "summary": "operatividadaduanera novedades aduanas comunicados 2014 comunica2014 htm",
-      "description": "operatividadaduanera novedades aduanas comunicados 2014 comunica2014 htm",
+      "summary": "Comunicados de aduanas 2014",
+      "description": "Comunicados publicados por aduanas durante 2014",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -204,11 +206,12 @@
     },
     {
       "commandPath": [
-        "operatividadaduanera",
-        "novedades"
+        "aduanas",
+        "comunicados",
+        "2015"
       ],
-      "summary": "operatividadaduanera novedades aduanas comunicados 2015 comunica2015 htm",
-      "description": "operatividadaduanera novedades aduanas comunicados 2015 comunica2015 htm",
+      "summary": "Comunicados de aduanas 2015",
+      "description": "Comunicados publicados por aduanas durante 2015",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -217,11 +220,12 @@
     },
     {
       "commandPath": [
-        "operatividadaduanera",
-        "novedades"
+        "aduanas",
+        "comunicados",
+        "2016"
       ],
-      "summary": "operatividadaduanera novedades aduanas comunicados 2016 comunica2016 htm",
-      "description": "operatividadaduanera novedades aduanas comunicados 2016 comunica2016 htm",
+      "summary": "Comunicados de aduanas 2016",
+      "description": "Comunicados publicados por aduanas durante 2016",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -230,11 +234,12 @@
     },
     {
       "commandPath": [
-        "operatividadaduanera",
-        "novedades"
+        "aduanas",
+        "comunicados",
+        "2017"
       ],
-      "summary": "operatividadaduanera novedades aduanas comunicados 2017 comunica2017 htm",
-      "description": "operatividadaduanera novedades aduanas comunicados 2017 comunica2017 htm",
+      "summary": "Comunicados de aduanas 2017",
+      "description": "Comunicados publicados por aduanas durante 2017",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -243,11 +248,12 @@
     },
     {
       "commandPath": [
-        "operatividadaduanera",
-        "novedades"
+        "aduanas",
+        "comunicados",
+        "2018"
       ],
-      "summary": "operatividadaduanera novedades aduanas comunicados 2018 comunica2018 htm",
-      "description": "operatividadaduanera novedades aduanas comunicados 2018 comunica2018 htm",
+      "summary": "Comunicados de aduanas 2018",
+      "description": "Comunicados publicados por aduanas durante 2018",
       "operationKind": "read",
       "transport": {
         "kind": "http",
@@ -256,11 +262,12 @@
     },
     {
       "commandPath": [
-        "operatividadaduanera",
-        "novedades"
+        "aduanas",
+        "comunicados",
+        "index"
       ],
-      "summary": "operatividadaduanera novedades aduanas comunicados anho comunica html",
-      "description": "operatividadaduanera novedades aduanas comunicados anho comunica html",
+      "summary": "Indice de comunicados de aduanas",
+      "description": "Indice por anho de los comunicados de aduanas",
       "operationKind": "read",
       "transport": {
         "kind": "http",
