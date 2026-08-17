@@ -1,3 +1,4 @@
+use crate::url::base_url;
 use serde_json::{json, Map, Value};
 use surfacer_ir::{
     resolve_auth, AuthMode, CredentialLocation, HttpMethod, OAuth2Grant, OperationKind,
@@ -319,8 +320,3 @@ fn describes_the_same_thing(command: &str, description: &str) -> bool {
     description.trim().is_empty() || squash(command) == squash(description)
 }
 
-fn base_url(source_url: &str) -> String {
-    url::Url::parse(source_url)
-        .map(|u| format!("{}://{}", u.scheme(), u.host_str().unwrap_or("localhost")))
-        .unwrap_or_else(|_| source_url.trim_end_matches('/').to_string())
-}

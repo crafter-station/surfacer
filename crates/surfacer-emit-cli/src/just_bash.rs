@@ -1,4 +1,5 @@
 use crate::escaping::escape_ts as escape_js;
+use crate::url::base_url;
 use surfacer_ir::{
     resolve_auth, AuthMode, CredentialLocation, OperationKind, OperationTransport, RenewalStrategy,
     SecretRef, SiteDescriptor, TokenUse,
@@ -341,13 +342,6 @@ fn attach_token_shell(token_use: Option<&TokenUse>) -> String {
             }
         }
     }
-}
-
-
-fn base_url(source_url: &str) -> String {
-    url::Url::parse(source_url)
-        .map(|u| format!("{}://{}", u.scheme(), u.host_str().unwrap_or("localhost")))
-        .unwrap_or_else(|_| source_url.to_string())
 }
 
 fn generated_at() -> String {

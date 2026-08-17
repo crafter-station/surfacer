@@ -1,4 +1,5 @@
 use crate::escaping::escape_ts;
+use crate::url::base_url;
 use surfacer_ir::{
     resolve_auth, AuthMode, CredentialLocation, OAuth2Grant, OperationKind, OperationTransport,
     SecretRef, SiteDescriptor,
@@ -19,6 +20,21 @@ use surfacer_ir::{
 /// expired browser-bootstrapped token becomes a tool error (`isError: true`)
 /// carrying the `surfacer auth login <site>` hint, never a process exit and
 /// never a browser attempt inside the server.
+///
+/// Known limitation: the agent-first rules in
+/// `tests/agent_first_rules.rs` cover `ts_cli` and `shim` only. This target is
+/// deliberately not covered.
+///
+/// The reason is that those rules were distilled from a corpus of hand-written
+/// CLIs, where a defect had to show up independently in more than one of them
+/// before it became a rule. There is no comparable corpus of hand-written MCP
+/// servers yet: not enough have been built to tell a real recurring defect from
+/// one author's habit. Writing MCP rules today would mean inventing them, and
+/// an invented rule enforced by a test is worse than no rule, because it looks
+/// like evidence.
+///
+/// This note exists so the absence is legible. Without it the silence reads as
+/// "MCP already satisfies the rules" instead of "MCP has not been measured".
 pub fn emit_mcp_server(descriptor: &SiteDescriptor) -> String {
     let site = &descriptor.meta.site_name;
     let display = escape_ts(&descriptor.meta.display_name);
@@ -440,9 +456,3 @@ fn restates(command: &str, description: &str) -> bool {
     description.trim().is_empty() || squash(command) == squash(description)
 }
 
-
-fn base_url(source_url: &str) -> String {
-    url::Url::parse(source_url)
-        .map(|u| format!("{}://{}", u.scheme(), u.host_str().unwrap_or("localhost")))
-        .unwrap_or_else(|_| source_url.trim_end_matches('/').to_string())
-}

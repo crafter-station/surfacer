@@ -1,4 +1,5 @@
 use crate::escaping::escape_ts;
+use crate::url::base_url;
 use surfacer_ir::{
     resolve_auth, AuthMode, CredentialLocation, OAuth2Grant, OperationKind, OperationTransport,
     ParamDescriptor, RenewalStrategy, SecretRef, SiteDescriptor, TokenUse,
@@ -141,6 +142,7 @@ interface Operation {{
 const SITE = {site_lit};
 const DISPLAY = {display_lit};
 const BASE = {base_lit};
+const IR_VERSION = {ir_version_lit};
 
 const OPERATIONS: Operation[] = [
 {operations}
@@ -354,8 +356,11 @@ function buildHelp(): string {{
   }}
   lines.push("");
   lines.push("FLAGS");
-  lines.push("  --json    Print the raw response body");
+  lines.push("  --json    Force machine output (the default when piped)");
   lines.push("  --help    Show this help");
+  lines.push("");
+  lines.push("INTROSPECTION");
+  lines.push("  schema    Print the operation surface as JSON");
   return lines.join("\n");
 }}
 
@@ -403,8 +408,31 @@ function attachToken(
 async function run(argv: string[]): Promise<number> {{
   const command = argv.length > 0 ? argv[0] : "";
 
+  // Help is a diagnostic, not data. It goes to stderr so that piping the CLI
+  // into a parser never mixes help text into the payload.
   if (command === "" || command === "--help" || command === "-h") {{
-    console.log(buildHelp());
+    console.error(buildHelp());
+    return 0;
+  }}
+
+  // Runtime introspection, so an agent reads the surface as data instead of
+  // parsing --help. The version lets a caller detect a regenerated contract.
+  if (command === "schema") {{
+    console.log(
+      JSON.stringify({{
+        site: SITE,
+        display: DISPLAY,
+        irVersion: IR_VERSION,
+        baseUrl: BASE,
+        operations: OPERATIONS.map((op) => ({{
+          name: op.name,
+          description: op.description,
+          kind: op.kind,
+          allowed: ALLOWED_KINDS.has(op.kind),
+          params: op.params.map((p) => ({{ name: p.name, example: p.example }})),
+        }})),
+      }}),
+    );
     return 0;
   }}
 
@@ -423,7 +451,10 @@ async function run(argv: string[]): Promise<number> {{
     return 77;
   }}
 
-  let wantsJson = false;
+  // Machine output is the default whenever stdout is not a terminal, so an
+  // agent piping this command gets structured output without knowing to ask.
+  // The flag only forces it on when a human runs it at a terminal.
+  let wantsJson = !process.stdout.isTTY;
   for (const arg of argv) {{
     if (arg === "--json") wantsJson = true;
   }}
@@ -457,6 +488,7 @@ main();
         site_lit = quote(site),
         display_lit = quote(&display),
         base_lit = quote(&base),
+        ir_version_lit = quote(&descriptor.meta.ir_version),
     )
 }
 
@@ -604,8 +636,3 @@ fn quote(value: &str) -> String {
 }
 
 
-fn base_url(source_url: &str) -> String {
-    url::Url::parse(source_url)
-        .map(|u| format!("{}://{}", u.scheme(), u.host_str().unwrap_or("localhost")))
-        .unwrap_or_else(|_| source_url.trim_end_matches('/').to_string())
-}

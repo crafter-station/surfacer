@@ -7,6 +7,7 @@ pub mod openapi;
 pub mod shim;
 pub mod template;
 pub mod ts_cli;
+pub mod url;
 
 pub use help::*;
 pub use just_bash::*;
