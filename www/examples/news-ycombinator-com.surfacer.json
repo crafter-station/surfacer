@@ -98,18 +98,6 @@
     },
     {
       "commandPath": [
-        "index-html"
-      ],
-      "summary": "index html",
-      "description": "index html",
-      "operationKind": "read",
-      "transport": {
-        "kind": "http",
-        "endpointIndex": 3
-      }
-    },
-    {
-      "commandPath": [
         "jobs"
       ],
       "summary": "jobs",
@@ -117,7 +105,7 @@
       "operationKind": "read",
       "transport": {
         "kind": "http",
-        "endpointIndex": 4
+        "endpointIndex": 3
       },
       "extractor": {
         "type": "list",
@@ -177,7 +165,7 @@
       "operationKind": "read",
       "transport": {
         "kind": "http",
-        "endpointIndex": 5
+        "endpointIndex": 4
       }
     },
     {
@@ -189,7 +177,7 @@
       "operationKind": "read",
       "transport": {
         "kind": "http",
-        "endpointIndex": 6
+        "endpointIndex": 5
       },
       "extractor": {
         "type": "list",
@@ -276,7 +264,7 @@
       "operationKind": "read",
       "transport": {
         "kind": "http",
-        "endpointIndex": 7
+        "endpointIndex": 6
       },
       "extractor": {
         "type": "list",
@@ -336,7 +324,7 @@
       "operationKind": "read",
       "transport": {
         "kind": "http",
-        "endpointIndex": 8
+        "endpointIndex": 7
       },
       "extractor": {
         "type": "list",
@@ -405,7 +393,7 @@
       "operationKind": "read",
       "transport": {
         "kind": "http",
-        "endpointIndex": 9
+        "endpointIndex": 8
       }
     },
     {
@@ -417,7 +405,7 @@
       "operationKind": "read",
       "transport": {
         "kind": "http",
-        "endpointIndex": 10
+        "endpointIndex": 9
       }
     }
   ],
@@ -455,17 +443,6 @@
         "operationKind": "read",
         "sampleRequestContentType": null,
         "sampleResponseContentType": "text/html; charset=utf-8"
-      },
-      {
-        "namespace": [
-          "index-html"
-        ],
-        "method": "GET",
-        "path": "/index.html",
-        "description": "index html",
-        "operationKind": "read",
-        "sampleRequestContentType": null,
-        "sampleResponseContentType": "text/html"
       },
       {
         "namespace": [
