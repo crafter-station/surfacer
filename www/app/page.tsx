@@ -98,8 +98,22 @@ export default async function Home() {
           agent a retry.
         </p>
         <p>
-          surfacer maps a surface once, then generates every interface from that
-          one descriptor. When the surface moves, you re-run recon.
+          surfacer compiles one descriptor into every interface, so they cannot
+          disagree. Bring your own IR, from the{" "}
+          <a
+            href="https://github.com/crafter-station/skills/tree/main/skills/surface-recon"
+            className="underline decoration-neutral-700 underline-offset-4 hover:text-neutral-400"
+          >
+            surface-recon
+          </a>{" "}
+          skill or written by hand.
+        </p>
+        <p>
+          The descriptor is the source and the interfaces are build artifacts,
+          which is what makes the next part possible: a surface with no official
+          API has no deprecation notice either.{" "}
+          <code className="font-mono text-sm">surfacer check</code> tells you it
+          moved, and you re-emit instead of rewriting the client.
         </p>
       </section>
 
