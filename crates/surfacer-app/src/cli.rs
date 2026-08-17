@@ -3,15 +3,11 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, anyhow};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use url::Url;
-use surfacer_classifier::ax_stub::extract_ax_actions;
-use surfacer_classifier::http_infer::infer_endpoints;
-
-use crate::commands::{emit, install, lint, recon};
-use crate::ui::prompt;
+use crate::commands::{emit, install, lint};
+use crate::output::emit_json;
 
 fn use_color() -> bool {
     std::env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal()
@@ -69,7 +65,7 @@ fn cmd(msg: &str) {
 #[command(
     name = "surfacer",
     about = "Generate the interface instead of writing it",
-    after_help = "Getting started:\n  surfacer recon <url> --auto --yes\n\nLearn more:\n  https://github.com/crafter-station/surfacer"
+    after_help = "Getting started:\n  surfacer lint <ir-path>       Validate an IR\n  surfacer install <ir-path>    Install it as a command\n\nLearn more:\n  https://github.com/crafter-station/surfacer"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -78,7 +74,6 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    Recon(ReconArgs),
     Emit(EmitArgs),
     Install(InstallArgs),
     Lint(LintArgs),
@@ -86,11 +81,45 @@ pub enum Commands {
     Auth(AuthArgs),
     Check(CheckArgs),
     Shell,
+    Skills(SkillsArgs),
+    /// Print this CLI's own command surface as JSON.
+    Schema,
+}
+
+/// Serves the agent-facing manual that ships inside the binary.
+///
+/// The manual is embedded rather than published as a separate file so it
+/// cannot drift from the version installed. A copy kept in a vault or a
+/// skills directory goes stale silently; this one is whatever the running
+/// binary was built from.
+#[derive(Debug, Clone, clap::Args)]
+pub struct SkillsArgs {
+    #[command(subcommand)]
+    pub action: SkillsAction,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum SkillsAction {
+    /// List the available skill documents.
+    List,
+    /// Print one skill document to stdout.
+    Get(SkillsGetArgs),
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct SkillsGetArgs {
+    /// Which document to print. Defaults to the only one that exists today.
+    #[arg(default_value = "core")]
+    pub name: String,
 }
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct CheckArgs {
     pub site: String,
+
+    /// Print the result as JSON. Implied when stdout is not a terminal.
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -132,58 +161,6 @@ pub struct ExecArgs {
 }
 
 #[derive(Debug, Clone, clap::Args)]
-pub struct ReconArgs {
-    pub url: String,
-
-    #[arg(long, value_enum, default_value = "read-only")]
-    pub policy: ProbePolicy,
-
-    #[arg(long)]
-    pub yes: bool,
-
-    #[arg(long)]
-    pub auto: bool,
-
-    #[arg(long, group = "technique")]
-    pub http: bool,
-
-    #[arg(long, group = "technique")]
-    pub ax: bool,
-
-    #[arg(long, group = "technique")]
-    pub hybrid: bool,
-
-    #[arg(long)]
-    pub output: Option<PathBuf>,
-}
-
-impl ReconArgs {
-    pub fn technique_override(&self) -> Option<TechniqueOverride> {
-        if self.http {
-            Some(TechniqueOverride::Http)
-        } else if self.ax {
-            Some(TechniqueOverride::Ax)
-        } else if self.hybrid {
-            Some(TechniqueOverride::Hybrid)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug, Clone, ValueEnum)]
-pub enum ProbePolicy {
-    ReadOnly,
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum TechniqueOverride {
-    Http,
-    Ax,
-    Hybrid,
-}
-
-#[derive(Debug, Clone, clap::Args)]
 pub struct InstallArgs {
     pub source: String,
 
@@ -212,14 +189,10 @@ pub enum EmitTargetArg {
 #[derive(Debug, Clone, clap::Args)]
 pub struct LintArgs {
     pub ir_path: PathBuf,
-}
 
-#[derive(Debug)]
-pub struct ClassifierSuggestionView {
-    pub bucket: surfacer_classifier::ClassifierBucket,
-    pub confidence: surfacer_classifier::Confidence,
-    pub http_endpoint_count: usize,
-    pub ax_action_count: usize,
+    /// Print the result as JSON. Implied when stdout is not a terminal.
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug)]
@@ -237,7 +210,6 @@ pub struct InstallSuccessView {
 
 pub async fn run_cli(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
-        Commands::Recon(args) => recon::run(args).await,
         Commands::Emit(args) => emit::run(args).await,
         Commands::Install(args) => install::run(args).await,
         Commands::Lint(args) => lint::run(args),
@@ -245,6 +217,8 @@ pub async fn run_cli(cli: Cli) -> anyhow::Result<()> {
         Commands::Auth(args) => auth_command(args).await,
         Commands::Check(args) => check_command(args).await,
         Commands::Shell => shell_command().await,
+        Commands::Skills(args) => skills_command(args),
+        Commands::Schema => schema_command(),
     }
 }
 
@@ -264,7 +238,7 @@ pub async fn exec_command(args: ExecArgs) -> anyhow::Result<()> {
 
         let installed = registry.sites.iter().map(|s| &s.site_name).collect::<Vec<_>>();
         if installed.is_empty() {
-            return Err(anyhow!("site '{}' not found. No sites installed.\n\n  Install one with:\n    surfacer recon <url> --auto --yes\n    surfacer install <ir_path>", args.site));
+            return Err(anyhow!("site '{}' not found. No sites installed.\n\n  Install one with:\n    surfacer install <ir_path>", args.site));
         }
         return Err(anyhow!("site '{}' not found. Installed sites:\n{}\n\n  Install with:\n    surfacer install <ir_path>",
             args.site,
@@ -403,340 +377,6 @@ async fn exec_with_ir(descriptor: &surfacer_ir::SiteDescriptor, args: &ExecArgs)
     }
 
     Ok(())
-}
-
-pub async fn recon_command(args: ReconArgs) -> anyhow::Result<surfacer_ir::SiteDescriptor> {
-    let output_dir = recon_output_dir(&args.url, args.output.as_deref())?;
-    std::fs::create_dir_all(&output_dir)
-        .with_context(|| format!("failed to create output dir {}", output_dir.display()))?;
-
-    let probe_options = surfacer_probe::ProbeOptions {
-        url: args.url.clone(),
-        visible: true,
-        output_dir: output_dir.clone(),
-    };
-
-    step("Connecting to browser on port 9222...");
-    let browser = surfacer_probe::agent_browser::BrowserProcess {
-        child_id: 0,
-        cdp_port: 9222,
-        profile_dir: std::path::PathBuf::new(),
-    };
-    let session = match surfacer_probe::agent_browser::connect_session(browser, &probe_options).await {
-        Ok(s) => s,
-        Err(e) => {
-            err("Cannot connect to browser on port 9222");
-            eprintln!();
-            hint("surfacer needs a Chromium browser with remote debugging enabled.");
-            hint("Start one with:");
-            eprintln!();
-            hint("# Comet (Perplexity)");
-            cmd("/Applications/Comet.app/Contents/MacOS/Comet --remote-debugging-port=9222 &");
-            eprintln!();
-            hint("# Chrome");
-            cmd("/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222 &");
-            eprintln!();
-            hint("Then retry:");
-            cmd(&format!("surfacer recon {} {}", args.url, if args.auto { "--auto" } else { "" }));
-            return Err(e);
-        }
-    };
-    ok("Connected");
-
-    step("Starting HAR capture...");
-    surfacer_probe::agent_browser::start_har_capture(&session).await?;
-
-    let initial_title = surfacer_probe::agent_browser::get_title(&session).await.ok();
-    let initial_url = surfacer_probe::agent_browser::get_url(&session).await.ok();
-    ok(&format!("Navigated to: {}", initial_title.as_deref().unwrap_or(&args.url)));
-
-    let ax_pre_path = surfacer_probe::paths::ax_pre_path(&output_dir);
-    surfacer_probe::agent_browser::take_ax_snapshot(&session, &ax_pre_path).await?;
-
-    if args.auto {
-        step(&format!("Auto-exploring {}...", args.url));
-        let color = use_color();
-        let auto_result = surfacer_probe::run_auto_recon(&session, move |iter, elements, url| {
-            if color {
-                eprint!("\r  {} {}/15  {} {:<4}  {} {}          ",
-                    "iter".dimmed(), iter.to_string().bold(),
-                    "elements:".dimmed(), elements,
-                    "→".dimmed(), url.cyan()
-                );
-            } else {
-                eprint!("\r  iter {iter}/15  elements: {elements:<4}  current: {url}          ");
-            }
-        })
-        .await
-        .context("auto-recon failed")?;
-        eprintln!();
-        ok(&format!("Explored {} pages in {} iterations",
-            auto_result.pages_visited, auto_result.iterations
-        ));
-        hint(&auto_result.stop_reason);
-    } else {
-        step("Navigate the site in the browser window, then press ENTER here when done.");
-        wait_for_enter().await?;
-    }
-
-    step("Finalizing capture...");
-    let mut probe = surfacer_probe::finalize_capture(session).await?;
-
-    if let Some(ref title) = initial_title {
-        if !title.is_empty() {
-            probe.final_title = Some(title.clone());
-        }
-    }
-    if let Some(ref url) = initial_url {
-        if !url.is_empty() && probe.final_url.is_none() {
-            probe.final_url = Some(url.clone());
-        }
-    }
-
-    ok(&format!("Captured {} HTTP requests", probe.har_entry_count));
-    step("Classifying site...");
-    let har_bytes = surfacer_probe::read_har_bytes(&probe.har_path)?;
-    let har = surfacer_probe::har::parse_har(&har_bytes)?;
-    let ax_tree = read_optional_string(probe.ax_final_path.as_deref())?;
-    let suggestion = surfacer_classifier::classify(&probe, &har_bytes, ax_tree.as_deref())?;
-
-    let http_surface = surfacer_ir::HttpSurface {
-        endpoints: infer_endpoints(&har),
-        auth: None,
-    };
-    let ax_surface = ax_tree
-        .as_deref()
-        .map(|text| surfacer_ir::AxSurface {
-            actions: extract_ax_actions(text),
-        });
-
-    let view = ClassifierSuggestionView {
-        bucket: suggestion.bucket.clone(),
-        confidence: suggestion.confidence.clone(),
-        http_endpoint_count: http_surface.endpoints.len(),
-        ax_action_count: ax_surface.as_ref().map(|surface| surface.actions.len()).unwrap_or(0),
-    };
-    ok(&format!("Classified: {} ({} confidence)",
-        classifier_bucket_label(&view.bucket),
-        confidence_label(&view.confidence),
-    ));
-    hint(&format!("HTTP endpoints: {}  |  AX actions: {}", view.http_endpoint_count, view.ax_action_count));
-
-    let decision = apply_user_override(suggestion, args.technique_override());
-
-    if !args.yes {
-        let technique = technique_label(&decision);
-        let accepted = prompt::confirm(&format!("Build IR using {technique}?"))?;
-        if !accepted {
-            return Err(anyhow!(abort_recon().to_string()));
-        }
-    }
-
-    step("Detecting extractors...");
-    let mut endpoint_extractors: std::collections::HashMap<usize, surfacer_ir::Extractor> =
-        std::collections::HashMap::new();
-    let will_use_http = matches!(
-        decision,
-        surfacer_classifier::TechniqueDecision::HttpOnly | surfacer_classifier::TechniqueDecision::Hybrid
-    );
-    if will_use_http {
-        for (i, endpoint) in http_surface.endpoints.iter().enumerate() {
-            let ep_url = {
-                let base = initial_url.as_deref().and_then(|u| {
-                    url::Url::parse(u).ok().map(|p| format!("{}://{}", p.scheme(), p.host_str().unwrap_or("localhost")))
-                }).unwrap_or_else(|| args.url.clone());
-                format!("{}{}", base.trim_end_matches('/'), endpoint.path)
-            };
-            match crate::execute::fetch_raw_html(&ep_url).await {
-                Ok(html) => {
-                    if let Some(extractor) = surfacer_probe::auto_extract::detect_extractor(&html, &ep_url).await {
-                        let field_count = match &extractor {
-                            surfacer_ir::Extractor::List(l) => l.fields.len(),
-                            _ => 0,
-                        };
-                        hint(&format!("  {} → {} fields detected", endpoint.path, field_count));
-                        endpoint_extractors.insert(i, extractor);
-                    }
-                }
-                Err(_) => {}
-            }
-        }
-    }
-    let extractor_count = endpoint_extractors.len();
-    ok(&format!("Detected extractors for {} endpoints", extractor_count));
-
-    step("Building IR...");
-    let descriptor = build_ir(decision, probe, http_surface, ax_surface, endpoint_extractors)?;
-    let ir_path = output_dir.join(format!("{}.surfacer.json", descriptor.meta.site_name));
-    surfacer_ir::write_ir(&ir_path, &descriptor)
-        .with_context(|| format!("failed to write IR to {}", ir_path.display()))?;
-
-    let op_count = descriptor.operations.len();
-    let ir_size = std::fs::metadata(&ir_path).map(|m| m.len()).unwrap_or(0);
-    ok(&format!("IR written: {} ({} operations, {}KB)", ir_path.display(), op_count, ir_size / 1024));
-    eprintln!();
-    hint("Next steps:");
-    cmd(&format!("surfacer install {}     Install locally", ir_path.display()));
-    cmd(&format!("surfacer lint {}        Validate the IR", ir_path.display()));
-    cmd(&format!("surfacer emit cli {}    Generate a CLI shim", ir_path.display()));
-
-    Ok(descriptor)
-}
-
-pub fn apply_user_override(
-    suggestion: surfacer_classifier::ClassificationResult,
-    override_choice: Option<TechniqueOverride>,
-) -> surfacer_classifier::TechniqueDecision {
-    match override_choice {
-        Some(TechniqueOverride::Http) => surfacer_classifier::TechniqueDecision::HttpOnly,
-        Some(TechniqueOverride::Ax) => surfacer_classifier::TechniqueDecision::AxOnly,
-        Some(TechniqueOverride::Hybrid) => surfacer_classifier::TechniqueDecision::Hybrid,
-        None => match suggestion.bucket {
-            surfacer_classifier::ClassifierBucket::FormSessionLegacy
-            | surfacer_classifier::ClassifierBucket::RestModernSpa
-            | surfacer_classifier::ClassifierBucket::GraphqlIntrospectable
-            | surfacer_classifier::ClassifierBucket::HtmlRendered => {
-                surfacer_classifier::TechniqueDecision::HttpOnly
-            }
-            surfacer_classifier::ClassifierBucket::AxOnly => {
-                surfacer_classifier::TechniqueDecision::AxOnly
-            }
-            surfacer_classifier::ClassifierBucket::Hostile
-            | surfacer_classifier::ClassifierBucket::Inconclusive => {
-                if suggestion.features.ax_interactive_nodes > 0
-                    && suggestion.features.total_requests > 0
-                {
-                    surfacer_classifier::TechniqueDecision::Hybrid
-                } else if suggestion.features.ax_interactive_nodes > 0 {
-                    surfacer_classifier::TechniqueDecision::AxOnly
-                } else {
-                    surfacer_classifier::TechniqueDecision::HttpOnly
-                }
-            }
-        },
-    }
-}
-
-pub fn abort_recon() -> miette::Report {
-    miette::miette!("recon aborted")
-}
-
-pub fn build_ir(
-    decision: surfacer_classifier::TechniqueDecision,
-    probe: surfacer_probe::ProbeCapture,
-    http: surfacer_ir::HttpSurface,
-    ax: Option<surfacer_ir::AxSurface>,
-    endpoint_extractors: std::collections::HashMap<usize, surfacer_ir::Extractor>,
-) -> anyhow::Result<surfacer_ir::SiteDescriptor> {
-    let source_url = probe
-        .final_url
-        .clone()
-        .unwrap_or_else(|| "unknown".to_string());
-    let site_name = site_slug_from_url(&source_url).unwrap_or_else(|| "site".to_string());
-    let display_name = probe
-        .final_title
-        .clone()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| site_name.clone());
-    let technique = match decision {
-        surfacer_classifier::TechniqueDecision::HttpOnly => surfacer_ir::ProvenanceTechnique::Http,
-        surfacer_classifier::TechniqueDecision::AxOnly => surfacer_ir::ProvenanceTechnique::Ax,
-        surfacer_classifier::TechniqueDecision::Hybrid => surfacer_ir::ProvenanceTechnique::Hybrid,
-        surfacer_classifier::TechniqueDecision::Abort => return Err(anyhow!("recon aborted")),
-    };
-
-    let mut operations = Vec::new();
-    let http_enabled = matches!(
-        decision,
-        surfacer_classifier::TechniqueDecision::HttpOnly
-            | surfacer_classifier::TechniqueDecision::Hybrid
-    );
-    let ax_enabled = matches!(
-        decision,
-        surfacer_classifier::TechniqueDecision::AxOnly | surfacer_classifier::TechniqueDecision::Hybrid
-    );
-
-    if http_enabled {
-        for (index, endpoint) in http.endpoints.iter().enumerate() {
-            let command_path = if endpoint.namespace.is_empty() {
-                fallback_http_command_path(index, &endpoint.path)
-            } else {
-                surfacer_ir::normalize_command_path(&endpoint.namespace)
-            };
-            let summary = if endpoint.description.trim().is_empty() {
-                format!("{:?} {}", endpoint.method, endpoint.path)
-            } else {
-                endpoint.description.clone()
-            };
-            let description = if endpoint.description.trim().is_empty() {
-                summary.clone()
-            } else {
-                endpoint.description.clone()
-            };
-            let extractor = endpoint_extractors.get(&index).cloned();
-            operations.push(surfacer_ir::OperationDescriptor {
-                command_path,
-                summary,
-                description,
-                operation_kind: endpoint.operation_kind.clone(),
-                transport: surfacer_ir::OperationTransport::Http(surfacer_ir::HttpOperation {
-                    endpoint_index: index,
-                }),
-                extractor,
-                auth: None,
-            });
-        }
-    }
-
-    if ax_enabled {
-        if let Some(ref ax_surface) = ax {
-            for (index, action) in ax_surface.actions.iter().enumerate() {
-                let command_path = if action.command_path.is_empty() {
-                    vec![format!("action-{}", index + 1)]
-                } else {
-                    action.command_path.clone()
-                };
-                let description = if action.description.trim().is_empty() {
-                    format!("AX action {}", index + 1)
-                } else {
-                    action.description.clone()
-                };
-                operations.push(surfacer_ir::OperationDescriptor {
-                    command_path,
-                    summary: description.clone(),
-                    description,
-                    operation_kind: surfacer_ir::OperationKind::Other,
-                    transport: surfacer_ir::OperationTransport::Ax(surfacer_ir::AxOperation {
-                        action_index: index,
-                    }),
-                    extractor: None,
-                    auth: None,
-                });
-            }
-        }
-    }
-
-    if operations.is_empty() {
-        return Err(anyhow!("no operations were derived from the selected technique"));
-    }
-
-    Ok(surfacer_ir::SiteDescriptor {
-        meta: surfacer_ir::SiteMeta {
-            site_name,
-            display_name,
-            source_url,
-            ir_version: "0.1.0".to_string(),
-        },
-        provenance: surfacer_ir::Provenance {
-            generated_at: timestamp_string()?,
-            technique,
-            classifier_bucket: technique_bucket_label(&decision).to_string(),
-            probe_duration_sec: 0,
-        },
-        operations,
-        http: http_enabled.then_some(http),
-        ax: ax_enabled.then_some(ax).flatten(),
-    })
 }
 
 pub async fn emit_command(args: EmitArgs) -> anyhow::Result<std::path::PathBuf> {
@@ -1205,6 +845,113 @@ async fn auth_logout(args: AuthLogoutArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// This CLI's own command surface, as data.
+///
+/// An agent reads this instead of parsing `--help`, which is prose written for
+/// a person and changes shape without notice. `version` lets a caller detect
+/// that the surface it learned is no longer the one installed.
+fn schema_command() -> anyhow::Result<()> {
+    emit_json(&serde_json::json!({
+        "name": "surfacer",
+        "version": env!("CARGO_PKG_VERSION"),
+        "description": "Compile an IR describing a surface into working interfaces",
+        "exitCodes": {
+            "0": "success",
+            "1": "user error, the request itself was wrong",
+            "2": "system error, the filesystem or network failed",
+        },
+        "commands": [
+            {
+                "name": "lint",
+                "summary": "Validate an IR before anything downstream reads it",
+                "args": [{ "name": "ir_path", "required": true }],
+                "flags": ["--json"],
+            },
+            {
+                "name": "install",
+                "summary": "Register an IR under its site name",
+                "args": [{ "name": "source", "required": true }],
+                "flags": ["--dest"],
+            },
+            {
+                "name": "emit",
+                "summary": "Generate an interface from an IR",
+                "args": [{ "name": "target", "required": true,
+                           "values": ["cli", "ts-cli", "just-bash", "openapi", "mcp"] },
+                         { "name": "ir_path", "required": true }],
+                "flags": ["--out-dir"],
+            },
+            {
+                "name": "exec",
+                "summary": "Run an operation from an installed site",
+                "args": [{ "name": "site", "required": true }],
+            },
+            {
+                "name": "check",
+                "summary": "Detect whether an installed site drifted from its IR",
+                "args": [{ "name": "site", "required": true }],
+                "flags": ["--json"],
+            },
+            {
+                "name": "auth",
+                "summary": "Capture and manage a session for an authenticated site",
+                "subcommands": ["login", "status", "logout"],
+            },
+            {
+                "name": "skills",
+                "summary": "Serve the agent-facing manual embedded in this binary",
+                "subcommands": ["list", "get"],
+            },
+            {
+                "name": "schema",
+                "summary": "Print this command surface as JSON",
+            },
+        ],
+    }));
+    Ok(())
+}
+
+/// The agent-facing manual, embedded at build time.
+///
+/// Serving it from the binary rather than shipping a copy elsewhere is the
+/// point: a manual kept in a second place drifts from the version installed,
+/// and the reader has no way to tell it went stale. This one is always what
+/// the running binary was built from.
+const SKILL_CORE: &str = include_str!("../../../skills/surfacer/SKILL.md");
+
+fn skills_command(args: SkillsArgs) -> anyhow::Result<()> {
+    match args.action {
+        SkillsAction::List => {
+            // The listing is a diagnostic; only a requested document is data.
+            eprintln!("core    How surfacer works: the loop, the six targets, drift, auth");
+            hint("Print one with: surfacer skills get core");
+            Ok(())
+        }
+        SkillsAction::Get(get) => match get.name.as_str() {
+            "core" => {
+                println!("{SKILL_CORE}");
+                Ok(())
+            }
+            other => Err(anyhow!(
+                "unknown skill '{other}'. Run `surfacer skills list` to see what exists."
+            )),
+        },
+    }
+}
+
+/// Detect whether an installed site drifted out from under its IR.
+///
+/// Known limitation: this only covers `descriptor.http`. It takes up to three
+/// endpoints as canaries and fingerprints each with a HEAD-style request, so
+/// the whole check is an HTTP reachability comparison.
+///
+/// An IR for a non-HTTP terrain (a file format, a hardware interface, a pure
+/// AX surface) has no `http` surface to sample, so it exits early with "no
+/// endpoints to check" and the drift check tells that site nothing. That is a
+/// known limitation, not a bug: the canary technique does not generalize to
+/// terrains where there is no endpoint to probe. Those terrains need their own
+/// drift signal (a format version, a firmware revision, an AX tree hash), which
+/// this command does not implement.
 pub async fn check_command(args: CheckArgs) -> anyhow::Result<()> {
     let home = home_dir()?;
     let ir_path = surfacer_ir::site_ir_path(&home, &args.site);
@@ -1225,12 +972,28 @@ pub async fn check_command(args: CheckArgs) -> anyhow::Result<()> {
         .map(|h| h.endpoints.iter().take(3).collect())
         .unwrap_or_default();
 
+    let mode = crate::output::Mode::resolve(args.json);
+
     if canaries.is_empty() {
+        if mode.is_json() {
+            // A terrain with no endpoints is not an error, it is a site this
+            // check cannot speak about. Saying so as data keeps a caller from
+            // reading silence as "no drift".
+            emit_json(&serde_json::json!({
+                "site": args.site,
+                "checked": false,
+                "reason": "no HTTP endpoints to check drift against",
+                "technique": descriptor.provenance.technique,
+            }));
+            return Ok(());
+        }
         warn("No HTTP endpoints to check drift against.");
         return Ok(());
     }
 
-    step(&format!("Checking {} canary endpoints for {}...", canaries.len(), args.site));
+    if !mode.is_json() {
+        step(&format!("Checking {} canary endpoints for {}...", canaries.len(), args.site));
+    }
 
     let mut current: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     for ep in &canaries {
@@ -1253,6 +1016,17 @@ pub async fn check_command(args: CheckArgs) -> anyhow::Result<()> {
     if !fingerprint_path.exists() {
         let json = serde_json::to_string_pretty(&current)?;
         std::fs::write(&fingerprint_path, &json)?;
+        if mode.is_json() {
+            emit_json(&serde_json::json!({
+                "site": args.site,
+                "checked": true,
+                "baseline": true,
+                "drifted": [],
+                "endpoints": current.len(),
+                "technique": descriptor.provenance.technique,
+            }));
+            return Ok(());
+        }
         ok(&format!("Baseline fingerprint saved ({} endpoints)", current.len()));
         hint("Run 'surfacer check' again later to detect drift.");
         return Ok(());
@@ -1276,6 +1050,30 @@ pub async fn check_command(args: CheckArgs) -> anyhow::Result<()> {
         }
     }
 
+    if mode.is_json() {
+        // `fingerprintUpdated` is not decoration: when drift is found the
+        // baseline is rewritten, so the next run reports clean whether or not
+        // anything was fixed. A caller polling this command has to know that
+        // this result is the one that carried the signal.
+        let updated = !drifted.is_empty();
+        if updated {
+            let json = serde_json::to_string_pretty(&current)?;
+            std::fs::write(&fingerprint_path, &json)?;
+        }
+        emit_json(&serde_json::json!({
+            "site": args.site,
+            "checked": true,
+            "baseline": false,
+            "drifted": drifted,
+            "matched": matched,
+            "endpoints": current.len(),
+            "technique": descriptor.provenance.technique,
+            "sourceUrl": descriptor.meta.source_url,
+            "fingerprintUpdated": updated,
+        }));
+        return Ok(());
+    }
+
     if drifted.is_empty() {
         ok(&format!("No drift detected ({}/{} endpoints match)", matched, current.len()));
     } else {
@@ -1284,9 +1082,20 @@ pub async fn check_command(args: CheckArgs) -> anyhow::Result<()> {
             hint(&format!("  {path}"));
         }
         eprintln!();
-        hint("The site may have changed. Re-run recon to update:");
-        cmd(&format!("surfacer recon {} --auto --yes", descriptor.meta.source_url));
-        cmd(&format!("surfacer install <new-ir-path>"));
+        // How to refresh the IR depends on where it came from. Telling the
+        // author of an agent-made IR to regenerate it mechanically would throw
+        // away the judgment that produced it, so the two cases differ.
+        match descriptor.provenance.technique {
+            surfacer_ir::ProvenanceTechnique::Agent => {
+                hint("The site may have changed. Re-run the recon skill on it and reinstall:");
+                cmd(&format!("/surfacer {}", descriptor.meta.source_url));
+                cmd("surfacer install <new-ir-path>");
+            }
+            _ => {
+                hint("The site may have changed. Replace the IR with an updated one:");
+                cmd("surfacer install <new-ir-path>");
+            }
+        }
 
         let json = serde_json::to_string_pretty(&current)?;
         std::fs::write(&fingerprint_path, &json)?;
@@ -1342,72 +1151,6 @@ async fn open_url_in_browser(url: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn fallback_http_command_path(index: usize, endpoint_path: &str) -> Vec<String> {
-    let segments = endpoint_path
-        .split('/')
-        .filter(|segment| !segment.is_empty())
-        .take(2)
-        .map(|segment| {
-            segment
-                .chars()
-                .map(|ch| {
-                    if ch.is_ascii_alphanumeric() || ch == '-' {
-                        ch.to_ascii_lowercase()
-                    } else {
-                        '-'
-                    }
-                })
-                .collect::<String>()
-                .trim_matches('-')
-                .to_string()
-        })
-        .filter(|segment| !segment.is_empty())
-        .collect::<Vec<_>>();
-    if segments.is_empty() {
-        vec![format!("endpoint-{}", index + 1)]
-    } else {
-        segments
-    }
-}
-
-fn technique_label(decision: &surfacer_classifier::TechniqueDecision) -> &'static str {
-    match decision {
-        surfacer_classifier::TechniqueDecision::HttpOnly => "http",
-        surfacer_classifier::TechniqueDecision::AxOnly => "ax",
-        surfacer_classifier::TechniqueDecision::Hybrid => "hybrid",
-        surfacer_classifier::TechniqueDecision::Abort => "abort",
-    }
-}
-
-fn classifier_bucket_label(bucket: &surfacer_classifier::ClassifierBucket) -> &'static str {
-    match bucket {
-        surfacer_classifier::ClassifierBucket::FormSessionLegacy => "FormSessionLegacy",
-        surfacer_classifier::ClassifierBucket::RestModernSpa => "RestModernSpa",
-        surfacer_classifier::ClassifierBucket::GraphqlIntrospectable => "GraphqlIntrospectable",
-        surfacer_classifier::ClassifierBucket::AxOnly => "AxOnly",
-        surfacer_classifier::ClassifierBucket::HtmlRendered => "HtmlRendered",
-        surfacer_classifier::ClassifierBucket::Hostile => "Hostile",
-        surfacer_classifier::ClassifierBucket::Inconclusive => "Inconclusive",
-    }
-}
-
-fn confidence_label(confidence: &surfacer_classifier::Confidence) -> &'static str {
-    match confidence {
-        surfacer_classifier::Confidence::High => "high",
-        surfacer_classifier::Confidence::Medium => "medium",
-        surfacer_classifier::Confidence::Low => "low",
-    }
-}
-
-fn technique_bucket_label(decision: &surfacer_classifier::TechniqueDecision) -> &'static str {
-    match decision {
-        surfacer_classifier::TechniqueDecision::HttpOnly => "HttpOnly",
-        surfacer_classifier::TechniqueDecision::AxOnly => "AxOnly",
-        surfacer_classifier::TechniqueDecision::Hybrid => "Hybrid",
-        surfacer_classifier::TechniqueDecision::Abort => "Abort",
-    }
-}
-
 fn home_dir() -> anyhow::Result<PathBuf> {
     std::env::var_os("HOME")
         .map(PathBuf::from)
@@ -1431,53 +1174,6 @@ fn resolve_local_ir_source(source: &str) -> anyhow::Result<PathBuf> {
     ))
 }
 
-fn recon_output_dir(url: &str, output: Option<&Path>) -> anyhow::Result<PathBuf> {
-    if let Some(output) = output {
-        return Ok(output.to_path_buf());
-    }
-
-    let slug = site_slug_from_url(url).unwrap_or_else(|| sanitize_slug(url));
-    Ok(std::env::current_dir()
-        .context("failed to determine current directory")?
-        .join(format!("surfacer-recon-{slug}")))
-}
-
-fn site_slug_from_url(url: &str) -> Option<String> {
-    let parsed = Url::parse(url).ok()?;
-    let host = parsed.host_str()?;
-    Some(sanitize_slug(host))
-}
-
-fn sanitize_slug(input: &str) -> String {
-    let mut slug = String::with_capacity(input.len());
-    let mut last_dash = false;
-
-    for ch in input.chars() {
-        let next = if ch.is_ascii_alphanumeric() {
-            ch.to_ascii_lowercase()
-        } else {
-            '-'
-        };
-
-        if next == '-' {
-            if !last_dash {
-                slug.push('-');
-            }
-            last_dash = true;
-        } else {
-            slug.push(next);
-            last_dash = false;
-        }
-    }
-
-    let slug = slug.trim_matches('-').to_string();
-    if slug.is_empty() {
-        "site".to_string()
-    } else {
-        slug
-    }
-}
-
 async fn wait_for_enter() -> anyhow::Result<()> {
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
@@ -1487,14 +1183,6 @@ async fn wait_for_enter() -> anyhow::Result<()> {
         .await
         .context("failed to read ENTER confirmation from stdin")?;
     Ok(())
-}
-
-fn read_optional_string(path: Option<&Path>) -> anyhow::Result<Option<String>> {
-    path.map(|path| {
-        std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read {}", path.display()))
-    })
-    .transpose()
 }
 
 fn timestamp_string() -> anyhow::Result<String> {

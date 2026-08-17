@@ -30,7 +30,7 @@ struct ShellCompleter {
 impl ShellCompleter {
     fn new(site_names: &[String]) -> Self {
         Self {
-            site_names: site_names.clone().to_vec(),
+            site_names: site_names.to_vec(),
             site_commands: Vec::new(),
             shell_commands: vec![
                 "ls".into(), "list".into(), "open".into(), "switch".into(),
@@ -243,9 +243,9 @@ pub async fn run_shell() -> anyhow::Result<()> {
             }
             "check" => {
                 if let Some(ref site) = state.current_site {
-                    let _ = crate::check_command(CheckArgs { site: site.clone() }).await;
+                    let _ = crate::check_command(CheckArgs { site: site.clone(), json: false }).await;
                 } else if !args.is_empty() {
-                    let _ = crate::check_command(CheckArgs { site: args[0].to_string() }).await;
+                    let _ = crate::check_command(CheckArgs { site: args[0].to_string(), json: false }).await;
                 } else {
                     eprintln!("  usage: check <site>");
                 }
@@ -393,7 +393,7 @@ fn list_sites(state: &ShellState) {
         .unwrap_or_else(|_| surfacer_ir::RegistryIndex { sites: Vec::new() });
 
     if registry.sites.is_empty() {
-        eprintln!("  No sites installed. Run: surfacer recon <url> --auto --yes");
+        eprintln!("  No sites installed. Run: surfacer install <ir-path>");
         return;
     }
 

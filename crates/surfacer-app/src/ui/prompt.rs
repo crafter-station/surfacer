@@ -2,6 +2,10 @@ use std::io::{self, Write};
 
 use anyhow::{Context, anyhow};
 
+/// Generic yes/no prompt. Unused since recon left the binary: every remaining
+/// command is non-interactive. Kept as a primitive next to `select` for the
+/// next command that needs a confirmation.
+#[allow(dead_code)]
 pub fn confirm(message: &str) -> anyhow::Result<bool> {
     print!("{message} [y/N]: ");
     io::stdout().flush().context("failed to flush stdout")?;
