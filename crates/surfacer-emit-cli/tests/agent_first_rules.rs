@@ -156,6 +156,29 @@ fn uses_meaningful_exit_codes() {
     );
 }
 
+/// Rule: a call the target was never observed answering fails before the
+/// request, not after.
+///
+/// Without this the target replies 200 with its own error page ("No such
+/// user."), the command exits zero, and the caller reads that as success. The
+/// IR records which parameters every observed request carried, so the emitted
+/// program has what it needs to refuse first.
+#[test]
+fn a_call_missing_an_observed_parameter_fails_before_the_request() {
+    let out = emit_ts();
+    assert!(
+        out.contains("missing parameter"),
+        "emitted CLI must reject a call that omits a parameter every observed \
+         request carried, rather than sending it and reporting the target's \
+         error page as success"
+    );
+    assert!(
+        out.contains("observations"),
+        "the check must be driven by observation counts from the IR, so it \
+         claims evidence rather than a contract the target never published"
+    );
+}
+
 /// Rule: no prompt ever blocks a non-interactive run.
 ///
 /// Anything that would prompt fails with a structured error instead of

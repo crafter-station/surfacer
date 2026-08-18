@@ -128,6 +128,11 @@ type Auth =
 interface Param {{
   name: string;
   example: string;
+  /** How many observed requests to this endpoint carried the parameter. */
+  observations: number;
+  /** True when the value differed across observations, which is the strongest
+   *  available evidence that the caller controls it. */
+  varies: boolean;
 }}
 
 interface Operation {{
@@ -460,6 +465,41 @@ async function run(argv: string[]): Promise<number> {{
   }}
 
   const args = parseArgs(argv.slice(1));
+
+  // Every observed request to this endpoint carried these parameters, so
+  // omitting one sends a request the target was never seen answering. Without
+  // this check the target replies 200 with its own error page and the command
+  // exits zero, which reads as success to whatever called it.
+  //
+  // The claim is about evidence, not about the contract: recon watched traffic
+  // and the target publishes no spec, so "present in every observation" is the
+  // strongest thing that can honestly be said. A parameter seen in some
+  // requests but not all is reported by `schema`, never enforced here.
+  const missing = op.params.filter(
+    (p) => p.observations > 0 && !args.has(p.name),
+  );
+  if (missing.length > 0) {{
+    console.error(
+      JSON.stringify({{
+        error: "missing parameter",
+        command: op.name,
+        missing: missing.map((p) => ({{
+          name: p.name,
+          example: p.example,
+          observedIn: p.observations,
+          callerControlled: p.varies,
+        }})),
+        hint:
+          op.name +
+          " " +
+          missing.map((p) => p.name + "=" + (p.example || "<value>")).join(" "),
+      }}),
+    );
+    // EX_USAGE, the same sysexits family as the 77 above, so a caller can tell
+    // a malformed invocation from a request the target refused.
+    return 64;
+  }}
+
   const baseUrl = withQuery(BASE + op.path, args);
 
   const resolved = await resolveToken(authForOperation(op.name));
@@ -500,9 +540,11 @@ fn render_params(params: &[ParamDescriptor]) -> String {
         .iter()
         .map(|p| {
             format!(
-                "{{ name: {}, example: {} }}",
+                "{{ name: {}, example: {}, observations: {}, varies: {} }}",
                 quote(&escape_ts(&p.name)),
-                quote(&escape_ts(p.example.as_deref().unwrap_or("")))
+                quote(&escape_ts(p.example.as_deref().unwrap_or(""))),
+                p.observations,
+                p.varies
             )
         })
         .collect::<Vec<_>>()

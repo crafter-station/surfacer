@@ -116,8 +116,13 @@ fn params_reach_both_help_and_the_request() {
     let out = surfacer_emit_cli::emit_ts_cli(&descriptor_with(&[("user", "read", &[("id", "Hunter17")])]));
 
     assert!(
-        out.contains(r#"{ name: "id", example: "Hunter17" }"#),
+        out.contains(r#"name: "id""#) && out.contains(r#"example: "Hunter17""#),
         "observed params must be inlined with their example"
+    );
+    assert!(
+        out.contains("observations:") && out.contains("varies:"),
+        "the evidence behind a param must travel with it, since the emitted \
+         program refuses a call that omits one every observation carried"
     );
     assert!(
         out.contains("withQuery("),

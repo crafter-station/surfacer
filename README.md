@@ -129,7 +129,8 @@ These hold for every emitted command, because one emitter produced all of them:
 - `--help` lists every command and every parameter the IR records, with an example value where one was captured. A command that exists is a command help mentions.
 - Parameters carry a name and an observed example rather than a declared type, because the IR is built from traffic and not from documentation. That is enough for help to name them instead of leaving an agent to guess from a URL.
 - Writes are blocked by default and fail loudly, naming the constant to edit. The IR records that an operation writes, not whether the write is destructive, so the emitter refuses to guess.
-- Exit codes are distinct: `0` success, `1` an unsuccessful response, `77` blocked by the trust gate, `127` unknown command.
+- A call that omits a parameter every observed request carried fails before the request is sent, naming the parameter and an observed example. Without that check the target answers 200 with its own error page and the command exits zero, which reads as success.
+- Exit codes are distinct: `0` success, `1` an unsuccessful response, `64` a call the descriptor says was never made that way, `77` blocked by the trust gate, `127` unknown command.
 
 ### And surfacer follows them too
 
@@ -142,7 +143,7 @@ A compiler that emits agent-first CLIs while not being one is not a defensible p
 
 The rules are executable, not aspirational. [`crates/surfacer-app/tests/agent_first_rules.rs`](./crates/surfacer-app/tests/agent_first_rules.rs) runs them against the real binary through `CARGO_BIN_EXE_surfacer`, and [`crates/surfacer-emit-cli/tests/agent_first_rules.rs`](./crates/surfacer-emit-cli/tests/agent_first_rules.rs) runs the same list against emitter output. One list, two subjects; a rule added to either belongs in both. They exist because when they were first written, surfacer broke four of the six rules it was already enforcing on what it emitted.
 
-Note the two exit code sets are different and both correct. `0/1/2` is surfacer's own, where the question is whether a retry helps. `0/1/77/127` above is the emitted CLI's, where a call can also be refused by the trust gate or name a command that does not exist.
+Note the two exit code sets are different and both correct. `0/1/2` is surfacer's own, where the question is whether a retry helps. The emitted CLI's set is larger because more can go wrong at a call site: a call can be malformed against the descriptor, refused by the trust gate, or name a command that does not exist.
 
 ## Requirements
 
