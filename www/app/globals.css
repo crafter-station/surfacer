@@ -41,3 +41,15 @@ html.dark .shiki span {
 .shiki {
   background: transparent !important;
 }
+
+/*
+ * Scalar renders a full API reference page, which laid out at its natural
+ * height took 3711px of a 7865px landing: 47% of the page, most of it empty,
+ * burying every section that follows it. Bounding it turns the viewer into a
+ * component on the page rather than a second page inside it.
+ */
+.spec-viewer {
+  max-height: 32rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
