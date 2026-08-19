@@ -123,9 +123,10 @@ surfacer exec <site> <command>           Run a command (used by shims)
 
 ## What the generated interface guarantees
 
-These hold for every emitted command, because one emitter produced all of them:
+These hold for every emitted command, because one emitter produced all of them and every
+standalone target shares one runtime (`runtime/ts`) rather than reimplementing it:
 
-- `--json` exists on every command and prints the response body alone. No banner, no version line, no color codes on the machine channel. Without it, commands print a one-line JSON summary of status, URL, and size.
+- `--json` exists on every command, and machine output is the default whenever stdout is not a terminal, so a piped call gets structured items without passing the flag. No banner, no version line, no color codes on the machine channel. At a terminal the same command renders a readable list instead, since the reader and the parser want different things.
 - `--help` lists every command and every parameter the IR records, with an example value where one was captured. A command that exists is a command help mentions.
 - Parameters carry a name and an observed example rather than a declared type, because the IR is built from traffic and not from documentation. That is enough for help to name them instead of leaving an agent to guess from a URL.
 - Writes are blocked by default and fail loudly, naming the constant to edit. The IR records that an operation writes, not whether the write is destructive, so the emitter refuses to guess.
@@ -142,6 +143,13 @@ A compiler that emits agent-first CLIs while not being one is not a defensible p
 - Exit codes are three, and they say whether retrying is worth anything: `0` succeeded, `1` the request itself was wrong (a malformed IR, an unknown site) and will fail the same way on a retry, `2` the filesystem or network failed and a retry may work.
 
 The rules are executable, not aspirational. [`crates/surfacer-app/tests/agent_first_rules.rs`](./crates/surfacer-app/tests/agent_first_rules.rs) runs them against the real binary through `CARGO_BIN_EXE_surfacer`, and [`crates/surfacer-emit-cli/tests/agent_first_rules.rs`](./crates/surfacer-emit-cli/tests/agent_first_rules.rs) runs the same list against emitter output. One list, two subjects; a rule added to either belongs in both. They exist because when they were first written, surfacer broke four of the six rules it was already enforcing on what it emitted.
+
+Sharing that runtime is what makes the claim checkable rather than aspirational. It was not
+true before: the same descriptor and the same operation returned 30 structured items through
+the shim and raw HTML through the ts-cli, because extraction lived only in Rust and only the
+shim could reach it. `crates/surfacer-emit-cli/tests/cross_emitter_golden.rs` now runs one
+descriptor through both paths and fails when they disagree, naming `wordCount` as the one
+expected difference since defuddle counts it differently.
 
 Note the two exit code sets are different and both correct. `0/1/2` is surfacer's own, where the question is whether a retry helps. The emitted CLI's set is larger because more can go wrong at a call site: a call can be malformed against the descriptor, refused by the trust gate, or name a command that does not exist.
 
