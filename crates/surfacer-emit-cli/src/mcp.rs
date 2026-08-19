@@ -107,6 +107,12 @@ pub fn emit_mcp_server(descriptor: &SiteDescriptor) -> String {
             auth_entries.push(format!("  {}: {record},", quote_key(&name)));
         }
 
+        // The parameters recon observed on every request, carried into the
+        // server so `call` can refuse an invocation that omits one. Before this
+        // the check existed only inside the ts-cli emitter, so the same
+        // descriptor enforced it as a CLI and ignored it as a tool.
+        let required = render_required_params(params);
+
         tools.push(format!(
             r#"  server.registerTool(
     "{name}",
@@ -115,7 +121,7 @@ pub fn emit_mcp_server(descriptor: &SiteDescriptor) -> String {
       inputSchema: {schema},
       annotations: {{ readOnlyHint: {read_only} }},
     }},
-    async (args) => call("{name}", "{kind}", "{path}", args),
+    async (args) => call("{name}", "{kind}", "{path}", args, {required}),
   );"#,
             read_only = matches!(op.operation_kind, OperationKind::Read),
         ));
@@ -282,11 +288,61 @@ function attachToken(url, headers, use, token) {{
   return url;
 }}
 
-async function call(name, kind, path, args) {{
+/**
+ * The parameters an operation requires that the caller did not supply.
+ *
+ * Same rule as `missingParams` in the shared TypeScript runtime
+ * (runtime/ts/params.ts), and a test asserts the two stay in step: a parameter
+ * counts as required when recon observed it in at least one request, because
+ * the target publishes no spec and observed traffic is the strongest evidence
+ * available. A parameter seen in some requests but not all is described in the
+ * tool schema and never enforced here.
+ *
+ * Why it must fail before the fetch: without it the target answers 200 with its
+ * own error page, and a tool result carrying that page reads as success.
+ */
+function missingParams(required, args) {{
+  const supplied = args && typeof args === "object" ? args : {{}};
+  const missing = [];
+  for (const param of required) {{
+    if (param.observations <= 0) continue;
+    const value = supplied[param.name];
+    if (value === undefined || value === null || value === "") missing.push(param);
+  }}
+  return missing;
+}}
+
+/** The structured body for a missing-parameter failure, matching the CLI's. */
+function missingParamsError(command, missing) {{
+  return {{
+    error: "missing parameter",
+    command,
+    missing: missing.map((p) => ({{
+      name: p.name,
+      example: p.example,
+      observedIn: p.observations,
+      callerControlled: p.varies,
+    }})),
+    hint:
+      command +
+      " " +
+      missing.map((p) => p.name + "=" + (p.example || "<value>")).join(" "),
+  }};
+}}
+
+async function call(name, kind, path, args, required) {{
   if (!ALLOWED_KINDS.has(kind)) {{
     return toolError(
       `blocked: ${{name}} is a ${{kind}} operation. Add "${{kind}}" to ALLOWED_KINDS to permit it.`,
     );
+  }}
+
+  // A CLI exits 64 (EX_USAGE) here. A tool cannot exit, so the same structured
+  // body comes back as a tool error, which is the MCP-shaped way to say the
+  // call was malformed rather than the target refusing it.
+  const missing = missingParams(required, args);
+  if (missing.length > 0) {{
+    return toolError(JSON.stringify(missingParamsError(name, missing)));
   }}
 
   let url = withQuery(BASE + path, args);
@@ -398,6 +454,32 @@ fn auth_record(auth: Option<&AuthMode>, site: &str) -> Option<String> {
             ))
         }
     }
+}
+
+/// Render the observed parameters a tool call must carry, as a JS array.
+///
+/// The fields mirror `Param` in runtime/ts/params.ts, because the check that
+/// consumes them is the same rule expressed for a runtime that has no
+/// TypeScript. An endpoint with no observed parameters emits `[]`, and the
+/// check then never fires.
+fn render_required_params(params: &[surfacer_ir::ParamDescriptor]) -> String {
+    if params.is_empty() {
+        return "[]".to_string();
+    }
+    let items = params
+        .iter()
+        .map(|p| {
+            format!(
+                r#"{{ name: "{}", example: "{}", observations: {}, varies: {} }}"#,
+                escape_ts(&p.name),
+                escape_ts(p.example.as_deref().unwrap_or("")),
+                p.observations,
+                p.varies,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{items}]")
 }
 
 /// Render a `TokenUse`-shaped JS object literal: `{{ location, name, valuePrefix }}`.

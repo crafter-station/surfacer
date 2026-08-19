@@ -14,3 +14,7 @@ surfacer-ir = { path = "../surfacer-ir" }
 
 [dev-dependencies]
 tempfile.workspace = true
+# The cross-emitter golden test runs the same selectors through scraper that
+# `surfacer-app` runs, so the Rust side of the comparison is the real engine
+# rather than a description of it.
+scraper.workspace = true

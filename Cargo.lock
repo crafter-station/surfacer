@@ -1354,6 +1354,7 @@ dependencies = [
  "anyhow",
  "camino",
  "owo-colors",
+ "scraper",
  "serde",
  "serde_json",
  "surfacer-ir",
